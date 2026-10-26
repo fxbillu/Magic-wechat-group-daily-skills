@@ -4,15 +4,17 @@
 
 ## 实现边界
 
-| 能力 | T0 状态 | 后续责任 |
+| 能力 | 当前集成状态（2026-10-27） | 后续责任 |
 |---|---|---|
 | 静态页面、未配置阅读、`/api/status`、未就绪错误 | 已实现 | 保持兼容 |
-| 既有 browse/day/chat/entry/search/messages/health | 保留旧字段与正常路径；脱敏例外为移除 health 的 `web_dir`，改用 `web_ready`；未就绪统一 503 | T1/T3 增加下述条目字段并修复旧缺陷 |
-| 每群每日采集覆盖、素材与日报版本 | 本文件约定，尚未实现 | T1/T3 |
+| 既有 browse/day/chat/entry/search/messages/health | 日期/群条目提供 `collection/report`；T3 已加入精确组合筛选与历史生效边界，公共验收通过；health 的脱敏例外及未就绪 503 不变 | T3 真实 API 的前端联调仍待完成 |
+| 稳定群身份、逐库覆盖、成功零消息 | 公共 CLI / HTTP 及 T1 正式 Python API 的前端联调通过，输入均为合成数据 | Windows 实库验证 |
+| 素材与日报版本、重采保留旧链接 | 公共验收及 T1 跨层联调通过；链接须对应真实文件 | T3 完整历史阅读验收 |
+| 前端采集/日报双维状态与读取路径 | T1 的两组公共 CLI → 正式 Python API → 前端场景通过 | T3 的 `expected` 与组合搜索前端验收仍待完成 |
 | 首份日报实际验收记录 | 尚未实现，不从文件存在推断 | T2 |
 | 宿主任务登记、回读和实际定时运行记录 | 尚未实现，不从时间配置推断 | T4 |
 
-T0 保留的旧浏览接口仍存在审查列出的缺陷；不能以接口存在或这份契约替代后续票据完成。页面不得将 `null` 或缺失字段解释成成功、零消息或已创建任务。
+当前集成通过 26 项公共入口测试；T1 的两组正式 API 前端联调已通过，T3 前端联调、旧缺陷剩余项和 Windows 验证仍未完成，#3/#5 尚未由主控关闭。页面不得将 `null` 或缺失字段解释成成功、零消息或已创建任务。证据见 [T1 跨层联调](../verification/t1-integration.md)与 [T3 后端](../verification/t3-backend.md)。T1 记录中的 F10 失败探查是修复前证据，不能作为搜索修复通过的证明。
 
 ## 配置发现与安装边界
 
@@ -22,7 +24,9 @@ T0 保留的旧浏览接口仍存在审查列出的缺陷；不能以接口存�
 4. 发现配置不创建文件或目录。代码包内旧 `scripts/config.json` 不自动导入；迁移工具、备份与路径校验的完整流程属于 T2。
 5. 配置只保存发现入口，实际数据可由用户选择另一目录。阅读所需的 `paths.root/data/reports` 必须是包外绝对路径；不能缺失后回退到代码目录。
 
-每次 HTTP 请求重新读取配置，初始化或修复完成后刷新即可继续；并发请求使用各自配置快照。密钥、账号 ID、绝对文件路径以及未列入契约的配置值不进入 `/api/status` 响应。公开字段先校验再摘取：`compose` 必须是对象、`chats` 必须是列表；群 ID/名称是最多 256 字、无控制字符的字符串，`daily` 为布尔；不反射嵌套对象或数组。`time` 为合法 `HH:mm`，`target_day` 当前只接受 `yesterday` 或未设置；时区只校验 `UTC` 或 IANA 区域标识形状，实际时区数据库解析属于 T2/T4。错误字段只产生脱敏 `CONFIG_INVALID`。
+每次 HTTP 请求重新读取配置，初始化或修复完成后刷新即可继续；并发请求使用各自配置快照。密钥、账号 ID、绝对文件路径以及未列入契约的配置值不进入 `/api/status` 响应。公开字段先校验再摘取：`compose` 必须是对象、`chats` 必须是列表；群 ID/名称是最多 256 字、无控制字符的字符串，`daily` 为布尔；不反射嵌套对象或数组。`time` 为合法 `HH:mm`，`target_day` 当前只接受 `yesterday` 或未设置。状态入口对时区只校验 `UTC` 或 IANA 区域标识形状，配置错误只产生脱敏 `CONFIG_INVALID`；T1 采集入口已按配置时区实际解析自然日，时区能力缺失按下述 `TIMEZONE_UNAVAILABLE` 记录，不回退到另一时区。环境引导与宿主时区核验仍属 T2/T4。
+
+T3 接受可选的 `chats[].effective_from`：合法 `YYYY-MM-DD` 表示当前这一轮关注从该自然日开始，包含当天。缺失或无效旧值表示范围未知，不从配置创建时间、首次归档或执行机今天猜测。新增或重新启用关注时，由 T2 记录用户确认的生效日；本字段不是完整的多轮关注历史。
 
 ## 通用约定
 
@@ -80,7 +84,7 @@ T0 保留的旧浏览接口仍存在审查列出的缺陷；不能以接口存�
 
 已知业务 API 与 `/r/` 在未就绪时返回 HTTP 503；缺配置/索引时不新建目录或索引，损坏/不兼容索引不自动修复。静态页面和 `/api/status` 仍可用。状态探查和业务读取均通过 SQLite `mode=ro` 读取连接；每个读取连接都核验受支持的 schema version 与完整必需列，不调用初始化或迁移。校验后索引再次变化也不能转成写连接。
 
-已有合法 WAL 数据必须可见，不使用会忽略活跃 WAL 的 `immutable=1`。SQLite 可能为读取协调使用 WAL/SHM 侧车；这里承诺不创建配置、业务数据或执行索引初始化/迁移，不承诺底层文件系统绝对零写入。
+阅读索引已有合法 WAL 数据必须可见，不使用会忽略活跃 WAL 的 `immutable=1`。SQLite 可能为读取协调使用 WAL/SHM 侧车；这里承诺不创建配置、业务数据或执行索引初始化/迁移，不承诺底层文件系统绝对零写入。这不表示微信源库的加密 WAL 已处理：按用户收敛要求，当前主库采集路线对非空源 WAL 仅记录诊断并继续原路径，尚无加密 WAL 合并；非空不等于存在未合并数据，真实覆盖留待目标 Windows 核实，见 [WAL 覆盖边界调查](../verification/wal-coverage-investigation.md)。
 
 ```json
 {
@@ -101,9 +105,12 @@ T0 保留的旧浏览接口仍存在审查列出的缺陷；不能以接口存�
 
 这些错误需要先处理原因，故 `retryable: false`；“重新检查”只刷新读取状态。页面不能据此自动循环重试或调用写操作。`message/error` 可调整中文文案，逻辑只依赖 `code/next_action`。
 
-T1–T4 将其他业务错误统一扩展为同样的 `code/retryable/next_action`，保留原 `error` 文本；T0 没有宣称所有旧 400/404/500 已完成标准化。
+T1 已增加以下采集错误语义，保留原 `error` 文本；其他旧 400/404/500 未因此全部标准化。
 
-## 既有读取入口与条目扩展（T1/T3 接入）
+- `/api/messages` 在最新采集失败且从无成功素材时返回 HTTP 409，`code: COLLECTION_FAILED`、`retryable: true`、`next_action: decrypt_and_retry_in_workbuddy`，并携带该条目的 `collection`。已有成功素材时仍返回 HTTP 200 和旧成功消息，同时携带最新失败的 `collection`，不能将旧消息误作本次采集成功。
+- 配置时区能力缺失时，`collection.coverage.issues` 记录 `TIMEZONE_UNAVAILABLE`、`retryable: false`、`next_action: repair_timezone_in_workbuddy`。无法计算目标范围时 `collection.range` 为 `null`，不伪造另一时区区间；这是具体采集失败原因，与消息接口外层 `COLLECTION_FAILED` 分开保留。
+
+## 既有读取入口与条目扩展（T1 已接入，T3 继续验收）
 
 | 入口 | 输入 | 既有输出/用途 |
 |---|---|---|
@@ -112,18 +119,19 @@ T1–T4 将其他业务错误统一扩展为同样的 `code/retryable/next_actio
 | `/api/chat` | `username, limit` | 某群 `entries` 历史 |
 | `/api/entry` | `date, username` | 一个日期与群交点 |
 | `/api/search` | `q, chat, from, to, sender, type, limit` | `query/count/truncated/results`；`chat` 为稳定群 ID |
-| `/api/messages` | `date, username, offset, limit` | 原消息分页；只在本机阅读 |
+| `/api/messages` | `date, username, offset, limit` | 原消息分页及最新 `collection`；无成功素材的当前失败返回上述 409 |
 | `/api/health` | 无 | 索引与前端基本状态；未就绪时也返回上述 503 |
 
 兼容例外：旧 `/api/health` 的 `web_dir` 会暴露本机绝对路径，因此已移除。读取方使用 `web_ready` 判断前端资源是否齐备，不应依赖或恢复绝对路径输出。
 
-T1/T3 为日期与群条目增加以下结构，保留旧 `state`、标题、计数和报告相对路径。前端正式接入时以新增结构为准，旧接口兼容映射由后端维护，不让每个页面重算。
+T1 已为日期与群条目增加 `collection/report`，T3 再以可加兼容方式增加条目和矩阵单元格的 `expected`；旧 `state`、标题、计数、报告相对路径及采集/日报枚举不变。T1 正式 API 联调已通过，T3 新字段的前端联调仍待完成。旧接口兼容映射由后端维护，不让每个页面重算。
 
 ```json
 {
   "username": "fixture-team",
   "chat": "示例群",
   "date": "2026-10-25",
+  "expected": true,
   "collection": {
     "state": "collected",
     "revision": "opaque-material-revision",
@@ -148,9 +156,11 @@ T1/T3 为日期与群条目增加以下结构，保留旧 `state`、标题、计
 - `collection.state`：`not_collected/running/collected/empty/failed`。只有覆盖已完成且消息数为零才能为 `empty`；失败不能变成零消息。
 - `report.state`：`pending/running/ready/stale/insufficient/failed/orphan`。`stale` 仍保留可读旧稿；`orphan` 表示产物在、素材归档缺失。
 - `revision/source_revision` 为不透明版本标识；同一素材重跑应稳定，源素材变化需明确标记旧稿。前端不生成或比较原消息散列。
-- `range` 用左闭右开区间；时间边界由后端统一，不按浏览器本机时区重新分日。
+- `range` 用左闭右开区间；时间边界由后端统一，不按浏览器本机时区重新分日。配置时区不可用且无法计算范围时为 `null`；未指定时区则使用执行机时区计算，`timezone` 保持 `null`。
 - 错误覆盖项提供可定位的代号和脱敏说明，不包含密钥或消息正文。
-- 每日应有关注群按生效范围或当日记录确定；不把后来添加的群追溯为过去日期失败。取消关注不删除已有历史日报。
+- `expected: true` 表示当日有实际采集/报告记录，或有明确生效证据应当采集；`false` 表示当前证据不在范围内；`null` 表示缺少生效证据。缺字段的兼容读取也不能猜测为 true。
+- 每日列表只补入明确应采集的关注群；`daily: false` 不补应采集项。矩阵为日期对齐保留的 `false/null` 占位不计为历史欠账，显式进入这些交点也不代表采集失败。
+- 实际采集和报告记录始终保留，不因后来关注、取消关注、移出名单或修改当前生效日而删除。按群历史仍返回实际记录；单一 `effective_from` 不声称覆盖多轮取消和重新关注的完整区间。
 
 ## 并行开发的验证依据
 

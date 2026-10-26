@@ -9,13 +9,13 @@ python -B scripts/tools/package.py --capabilities
 
 JSON 的 `passed` 只代表指定的合成能力检查通过。必需检查失败退出 1；可选失败或未测不阻断文本主线。
 本命令不安装软件、不读取个人配置或微信、不加载语音模型、不登记任务；临时文件自动清理。
-这是一份独立诊断；日常使用从 WorkBuddy 首次调用 Skill 进入初始化，按候选实际入口提示检查，再生成首份日报。T2 集成时会核对初始化入口与这里的能力说明，不能仅凭包名已安装判断可用。
+这是一份独立诊断；日常使用从 WorkBuddy 首次调用 Skill 进入初始化，按候选实际入口提示检查，再生成首份日报。初始化使用同一实际 AES 适配器检查能力，不能仅凭包名已安装判断可用。
 
 | 能力 | 必需性、源码依据 | 本命令实际验证 | 尚需验证 |
 |---|---|---|---|
 | Python ≥3.11、标准库 SQLite | 主线；所有 Python 工具与 `db.py` | 版本；临时内存 SQLite 建表、写入、查询 | Windows 解释器/架构与真实库、WAL 覆盖 |
 | AES-256-CBC 解密 | 主线；`safe_decrypt.py` 优先 Windows CNG，失败回退 cryptography | 实际调用该解密适配器，通过 NIST 公开向量核对明文 | 进程取钥、SQLCipher 页/HMAC、活库覆盖；合成 AES 不代表这些通过 |
-| cryptography | AES 后备实现；Windows CNG 可用时适配器可能不使用它 | 记录安装版本；AES 检查验证实际解密路径 | 最终初始化依赖判断随 T2 集成核对；不单凭此包缺失或存在断言 AES 能力 |
+| cryptography | AES 后备实现；Windows CNG 可用时适配器可能不使用它 | 记录安装版本；AES 检查验证实际解密路径 | 初始化也按实际 AES 能力判断；不单凭此包缺失或存在断言 AES 能力 |
 | Node + 内置 Zstd 解压 | App/链接/文件内容所需；`content.py` 调用 `zstd_bridge.js`，缺失会降级 | 用公开的合成 Zstd 帧走真实桥接脚本并核对 `hello` | 真实微信压缩消息；仅 `node --version` 不足以证明能力 |
 | 本地 Vue 3.5.44 | 阅读主线，自带 vendor，无 npm 安装/CDN | 打包清单、文本扫描及来源哈希 | 浏览器与真实 Python HTTP 联调 |
 | WorkBuddy、微信 Windows | 真实取数/模型成稿/本地任务所需 | **不探测**；恒为 `not_tested` | 用户拿到候选后试用首报，以本地任务模板创建/更新任务、查看详情并记录到点结果 |
