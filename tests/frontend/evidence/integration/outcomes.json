@@ -1,0 +1,26 @@
+[
+  {
+    "check": "browser",
+    "phase": "first-failure",
+    "result": "passed"
+  },
+  {
+    "check": "CLI/HTTP",
+    "phase": "first-failure",
+    "http_messages": 409,
+    "code": "COLLECTION_FAILED",
+    "result": "passed"
+  },
+  {
+    "check": "browser",
+    "phase": "timezone",
+    "result": "passed"
+  },
+  {
+    "check": "CLI/HTTP",
+    "phase": "timezone",
+    "http_messages": 409,
+    "code": "COLLECTION_FAILED",
+    "result": "passed"
+  }
+]

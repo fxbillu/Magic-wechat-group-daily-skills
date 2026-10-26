@@ -62,6 +62,8 @@
         && !["ready", "stale", "orphan", "report_failed", "report_running"].includes(reportState)) state = collectionState;
     return { ...entry, state, collectionState, reportState, html_url: html, png_url: png,
       total: Number.isInteger(c.message_count) && c.message_count >= 0 ? c.message_count : null,
+      unique_senders: c.message_count == null ? null : entry.unique_senders,
+      chars: c.message_count == null ? null : entry.chars,
       composed_at: r.composed_at || null };
   }
 
@@ -1052,6 +1054,11 @@
           </div>
           <div class="banner err" v-if="entry.collectionState === 'collection_failed' && entry.state !== 'collection_failed'">
             本次采集失败，下面保留已有日报；不能据此认定本次采集成功。
+          </div>
+          <div class="banner err" v-for="(issue, i) in entry.collection?.coverage?.issues || []" :key="i" role="status">
+            <b>{{ issue.code || 'COLLECTION_FAILED' }}</b> · {{ issue.message }}
+            <span v-if="issue.retryable === false">请先在 WorkBuddy 中修复上述问题，再重新采集。</span>
+            <span v-else>请在 WorkBuddy 中核对问题，再决定是否重新采集。</span>
           </div>
           <WorkBuddyAction :username="username" :date="date" />
 
