@@ -7,7 +7,7 @@
 | 能力 | T0 状态 | 后续责任 |
 |---|---|---|
 | 静态页面、未配置阅读、`/api/status`、未就绪错误 | 已实现 | 保持兼容 |
-| 既有 browse/day/chat/entry/search/messages/health | 保留旧字段与正常路径；未就绪统一 503 | T1/T3 增加下述条目字段并修复旧缺陷 |
+| 既有 browse/day/chat/entry/search/messages/health | 保留旧字段与正常路径；脱敏例外为移除 health 的 `web_dir`，改用 `web_ready`；未就绪统一 503 | T1/T3 增加下述条目字段并修复旧缺陷 |
 | 每群每日采集覆盖、素材与日报版本 | 本文件约定，尚未实现 | T1/T3 |
 | 首份日报实际验收记录 | 尚未实现，不从文件存在推断 | T2 |
 | 宿主任务登记、回读和实际定时运行记录 | 尚未实现，不从时间配置推断 | T4 |
@@ -114,6 +114,8 @@ T1–T4 将其他业务错误统一扩展为同样的 `code/retryable/next_actio
 | `/api/search` | `q, chat, from, to, sender, type, limit` | `query/count/truncated/results`；`chat` 为稳定群 ID |
 | `/api/messages` | `date, username, offset, limit` | 原消息分页；只在本机阅读 |
 | `/api/health` | 无 | 索引与前端基本状态；未就绪时也返回上述 503 |
+
+兼容例外：旧 `/api/health` 的 `web_dir` 会暴露本机绝对路径，因此已移除。读取方使用 `web_ready` 判断前端资源是否齐备，不应依赖或恢复绝对路径输出。
 
 T1/T3 为日期与群条目增加以下结构，保留旧 `state`、标题、计数和报告相对路径。前端正式接入时以新增结构为准，旧接口兼容映射由后端维护，不让每个页面重算。
 

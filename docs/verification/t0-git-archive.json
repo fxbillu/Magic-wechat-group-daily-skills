@@ -1,0 +1,9 @@
+{
+  "commit": "bf0d3bec202a2e9d3216cd354726f343a8653243",
+  "legacy_import_present": false,
+  "isolated_python": true,
+  "tests_exit_code": 0,
+  "tests_output": "test_broken_configuration_is_redacted_and_never_falls_back_to_package_paths (test_readiness.ReadinessTest.test_broken_configuration_is_redacted_and_never_falls_back_to_package_paths) ... ok\ntest_existing_but_invalid_index_does_not_claim_reading_is_available (test_readiness.ReadinessTest.test_existing_but_invalid_index_does_not_claim_reading_is_available) ... ok\ntest_fresh_install_can_read_setup_state_without_creating_user_data (test_readiness.ReadinessTest.test_fresh_install_can_read_setup_state_without_creating_user_data) ... ok\ntest_incomplete_index_schema_is_not_migrated_by_any_reader_request (test_readiness.ReadinessTest.test_incomplete_index_schema_is_not_migrated_by_any_reader_request) ... ok\ntest_nested_or_invalid_config_fields_never_echo_in_status (test_readiness.ReadinessTest.test_nested_or_invalid_config_fields_never_echo_in_status) ... ok\ntest_public_reindex_restores_reading_without_restarting_the_server (test_readiness.ReadinessTest.test_public_reindex_restores_reading_without_restarting_the_server) ... ok\ntest_saved_configuration_without_index_is_not_ready_and_is_not_repaired_by_get (test_readiness.ReadinessTest.test_saved_configuration_without_index_is_not_ready_and_is_not_repaired_by_get) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 1.122s\n\nOK\n",
+  "js_syntax_exit_code": 0,
+  "js_syntax_output": ""
+}
