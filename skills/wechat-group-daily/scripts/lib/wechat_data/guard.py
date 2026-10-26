@@ -24,6 +24,7 @@
 import datetime
 import json
 import os
+import re
 import time
 
 STAMP_NAME = ".stamp.json"
@@ -47,33 +48,72 @@ def stamp_path(db_dir: str) -> str:
     return os.path.join(db_dir, STAMP_NAME)
 
 
-def write_stamp(db_dir: str, files: dict | None = None, source_dir: str = "") -> str:
-    """记录本次解密时刻。files: {相对路径: {size, mtime}}
+def is_core(rel):
+    return rel in ('contact/contact.db', 'session/session.db') or bool(
+        re.fullmatch(r'message/message_\d+\.db', rel))
 
-    与已有时间戳**合并**而非覆盖：只解一个库时不应丢掉其他库的指纹。
-    """
+
+def required_files(source_dir):
+    found = {'contact/contact.db'}
+    for root, _, names in os.walk(source_dir):
+        for name in names:
+            rel = os.path.relpath(os.path.join(root, name), source_dir).replace('\\', '/')
+            if is_core(rel):
+                found.add(rel)
+    return found
+
+
+def write_stamp(db_dir: str, files: dict | None = None, source_dir: str = '',
+                required=None, failures=None) -> str:
+    from .archive import _atomic_write
     old = read_stamp(db_dir) or {}
-    merged = dict(old.get("files") or {})
+    if old.get('source_dir') != source_dir:
+        old = {}
+    merged = dict(old.get('files') or {})
     merged.update(files or {})
-    data = {
-        "decrypted_at": int(time.time()),
-        "decrypted_at_str": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "source_dir": source_dir or old.get("source_dir", ""),
-        "file_count": len(merged),
-        "files": merged,
-    }
-    p = stamp_path(db_dir)
-    os.makedirs(db_dir, exist_ok=True)
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return p
+    errors = dict(old.get('failures') or {})
+    errors.update(failures or {})
+    for rel in files or {}:
+        errors.pop(rel, None)
+    expected = sorted(required if required is not None else required_files(source_dir))
+    verified = [merged.get(rel, {}).get('verified_at', 0) for rel in expected]
+    complete_at = min(verified) if verified else 0
+    data = {'schema_version': 2, 'decrypted_at': complete_at,
+            'decrypted_at_str': datetime.datetime.fromtimestamp(complete_at).astimezone().isoformat(),
+            'source_dir': source_dir, 'file_count': len(merged), 'files': merged,
+            'required': expected, 'failures': errors}
+    path = stamp_path(db_dir)
+    _atomic_write(path, data)
+    return path
+
+
+def coverage(db_dir):
+    stamp = read_stamp(db_dir) or {}
+    files = stamp.get('files') or {}
+    expected = set(stamp.get('required') or [])
+    source = stamp.get('source_dir')
+    if source and os.path.isdir(source):
+        expected.update(required_files(source))
+    issues = []
+    if stamp.get('schema_version') != 2 or not any(
+            rel.startswith('message/') for rel in expected):
+        issues.append({'code': 'DECRYPTION_INCOMPLETE', 'source': 'snapshot',
+                       'message': '缺少逐库核验记录，请重新解密核心库。'})
+    for rel in sorted(expected):
+        if (not files.get(rel, {}).get('verified_at') or rel in (stamp.get('failures') or {})
+                or not os.path.isfile(os.path.join(db_dir, rel))):
+            issues.append({'code': 'DECRYPTION_INCOMPLETE', 'source': rel,
+                           'message': '核心库尚未成功解密或产物缺失。'})
+    for issue in issues:
+        issue.update(retryable=True, next_action='decrypt_and_retry_in_workbuddy')
+    return {'complete': not issues, 'issues': issues}
 
 
 def rebuild_stamp(db_dir: str, source_dir: str) -> dict:
     """不解密，仅按现有产物重建时间戳
 
     用于：换了解密工具、或时间戳丢失后的修复。
-    解密时刻取 decrypted 下最新 .db 的 mtime，避免伪造新时间。
+    此记录只供诊断，不能代替逐库解密核验；coverage() 始终要求 schema v2。
     """
     files = {}
     newest = 0
@@ -165,6 +205,12 @@ def check(db_dir: str, max_age_hours: float = 24.0,
             "stale_files": [],
             "action": "请先运行 tools/safe_decrypt.py 重新解密",
         }
+
+    verified = coverage(db_dir)
+    if not verified['complete']:
+        return {'fresh': False, 'age_hours': None, 'reason': '核心库覆盖未完成',
+                'stale_files': [], 'coverage': verified,
+                'action': '重新解密核心库后再采集'}
 
     now = time.time()
     age_h = (now - st["decrypted_at"]) / 3600.0

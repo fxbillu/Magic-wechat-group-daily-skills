@@ -20,7 +20,7 @@
     # 一次导出多个群
     python fetch.py export --chats "群A,群B" --date 2026-10-24 --outdir out
 
-输出目录默认 out/，文件名 <会话名>_<日期>.<ext>
+export 输出目录默认 out/；archive 使用包外配置目录及稳定群 ID 文件名。
 """
 import argparse
 import os
@@ -163,48 +163,63 @@ def _date_list(args):
 
 
 def cmd_archive(args):
-    """采集并落盘到归档层——这是采集与日报解耦的关键"""
-    from wechat_data import ChatResolver, MessageReader, archive as ar, parse_range
-    from wechat_data import settings as st
+    """Collect complete group-days, preserving successful material after a failed retry."""
+    import sqlite3
+    from wechat_data import archive as ar, collection, guard, settings as st
+    from wechat_data.chat import Chat
+    from wechat_data.messages import CoverageError
 
     cfg = st.require()
-    if args.config:
-        chats = [c["name"] for c in (cfg.get("chats") or []) if c.get("daily", True)]
-        if not chats:
-            print("[错误] 配置里没有监控群，请先运行 tools/setup.py", file=sys.stderr)
-            return 1
-    else:
-        chats = [x.strip() for x in (args.chats or "").split(",") if x.strip()]
-    if not chats:
-        print("[错误] 用 --config 或 --chats 指定要采集的群", file=sys.stderr)
+    configured = [c for c in cfg.get('chats', []) if c.get('daily', True)]
+    targets = [c['username'] for c in configured] if args.config else [
+        x.strip() for x in (args.chats or '').split(',') if x.strip()]
+    if not targets:
+        print('[错误] 用 --config 或 --chats 指定要采集的群', file=sys.stderr)
         return 1
-
-    dates = _date_list(args)
-    data_root = cfg["paths"]["data"]
-    resolver = ChatResolver(args.db_dir)
-    saved = 0
-
-    with MessageReader(args.db_dir) as reader:
-        for date in dates:
-            s, e = parse_range(date=date)
-            for kw in chats:
-                try:
-                    chat = resolver.resolve(kw, kind="group")
-                except LookupError as ex:
-                    print(f"[跳过] {kw}: {ex}", file=sys.stderr)
+    directory = config.db_dir(args.db_dir)
+    verified = guard.coverage(directory)
+    resolver = ChatResolver(directory) if verified['complete'] else None
+    saved = failures = 0
+    for date in _date_list(args):
+        start, end = parse_range(date=date)
+        start, end, _ = collection.day_range(cfg, start, end)
+        issues = verified['issues']
+        if verified['complete']:
+            freshness = guard.check(directory, args.max_age_hours or 24, target_date=date)
+            if not freshness['fresh'] and not args.allow_stale:
+                issues = [{'code': 'SNAPSHOT_STALE', 'source': 'snapshot',
+                           'message': '快照未覆盖目标日期或已经过期。', 'retryable': True,
+                           'next_action': 'decrypt_and_retry_in_workbuddy'}]
+        for target in targets:
+            fallback = next((c for c in configured if c['username'] == target), {})
+            chat = Chat(target, fallback.get('name') or target, kind='group')
+            try:
+                if resolver:
+                    chat = resolver.get(target) if args.config else resolver.resolve(target, kind='group')
+                if issues:
+                    collection.failed(cfg, date, chat, start, end, issues)
+                    failures += 1
+                    print(f"[失败] {date} {chat.username}: {issues[0]['code']}", file=sys.stderr)
                     continue
-                msgs = reader.fetch(chat, s, e)
-                if not msgs:
-                    print(f"[空] {date}  {chat.name}")
-                    continue
-                stats = reader.summarize(msgs)
-                p = ar.save(cfg, date, chat, msgs, stats, s, e)
+                with MessageReader(directory) as reader:
+                    msgs = reader.fetch(chat, start, end)
+                    stats = reader.summarize(msgs)
+                path = ar.save(cfg, date, chat, msgs, stats, start, end)
                 saved += 1
-                print(f"[归档] {date}  {chat.name}  {stats.total} 条 / "
-                      f"{stats.unique_senders} 人 -> {os.path.relpath(p, data_root)}")
-
-    print(f"\n完成：{saved} 份归档" + (f"，目录 {data_root}" if saved else ""))
-    return 0 if saved else 2
+                print(f'[归档] {date} {chat.username} {stats.total} 条 -> {path}')
+            except LookupError as error:
+                failures += 1
+                print(f'[失败] {error}', file=sys.stderr)
+            except (CoverageError, sqlite3.Error, FileNotFoundError) as error:
+                failures += 1
+                details = error.issues if isinstance(error, CoverageError) else [{
+                    'code': 'SOURCE_UNREADABLE', 'source': 'snapshot',
+                    'message': '核心数据库无法读取，请检查并重新解密。', 'retryable': True,
+                    'next_action': 'decrypt_and_retry_in_workbuddy'}]
+                collection.failed(cfg, date, chat, start, end, details)
+                print(f"[失败] {date} {chat.username}: {details[0]['code']}", file=sys.stderr)
+    print(f'完成：{saved} 份归档，{failures} 个失败')
+    return 1 if failures else 0
 
 
 def cmd_status(args):
@@ -240,7 +255,9 @@ def cmd_reindex(args):
           + (f"，{r['broken']} 个文件损坏已跳过" if r["broken"] else ""))
     print(f"索引    {db.db_path(cfg)}")
     print(f"导出    {p}")
-    return 0
+    if r["broken"]:
+        print("[需处理] 无法确认身份或损坏的旧资料已保留，请在 WorkBuddy 中选择来源。", file=sys.stderr)
+    return 1 if r["broken"] else 0
 
 
 def cmd_views(args):
@@ -317,6 +334,10 @@ def _check_freshness(db_dir: str, max_age: float, allow_stale: bool,
     """
     from wechat_data import guard
 
+    verified = guard.coverage(db_dir)
+    if not verified['complete']:
+        print('[失败] DECRYPTION_INCOMPLETE：请重新解密核心库。', file=sys.stderr)
+        return 5
     try:
         guard.assert_fresh(db_dir, max_age, target_date=target_date)
         return None
@@ -398,7 +419,7 @@ def main():
 
     # 新鲜度闸门：宁可停下，也不拿过期数据算出一份"看起来正常"的日报。
     # archive 必须在列——它是出报主链路的第一步，漏了它等于整条链都没有保护。
-    if args.cmd in ("export", "stat", "archive"):
+    if args.cmd in ("export", "stat"):
         try:
             from wechat_data import config as cfgmod
             max_age = args.max_age_hours if args.max_age_hours else 24.0

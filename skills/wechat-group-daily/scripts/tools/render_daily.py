@@ -1,6 +1,6 @@
 """日报渲染：story.json → 杂志风 HTML（+ PNG 长图）
 
-默认按约定输出到 `reports/<date>/<群名>.html|.png`，并登记到索引 index.db；
+默认按约定输出到 `reports/<date>/<群ID的sha256>.html|.png`，并登记到索引 index.db；
 指定 `--out` 则回到"只出文件、不登记"的自由模式。
 
     python render_daily.py story.json                         # 约定路径 + 登记
@@ -411,16 +411,20 @@ def _rel_to_reports(cfg, path):
 
 
 def _default_outputs(cfg, story):
-    """按约定算默认输出：reports/<date>/<群名>.html + 同名 .png"""
+    """按约定算默认输出：reports/<date>/<群ID的sha256>.html + 同名 .png"""
     from wechat_data import settings
-    from wechat_data.archive import safe_name
+    from wechat_data.archive import archive_path
 
     date = str(story.get("date") or "")
     chat = str(story.get("group_name") or "")
     if not (date and chat):
         raise SystemExit("[错误] story.json 缺少 date 或 group_name，无法推断输出路径；"
                          "请显式指定 --out")
-    stem = os.path.join(settings.reports_dir(cfg), date, safe_name(chat))
+    username = story.get('username')
+    if not username:
+        raise SystemExit('[错误] 群身份不明确，请指定 story.username。')
+    stem = os.path.join(settings.reports_dir(cfg), date,
+                        os.path.splitext(os.path.basename(archive_path(cfg, date, username)))[0])
     return stem + ".html", stem + ".png"
 
 
@@ -445,7 +449,7 @@ def _theme_from_config(cfg, story) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("story")
-    ap.add_argument("--out", help="HTML 输出路径（默认 reports/<date>/<群名>.html）")
+    ap.add_argument("--out", help="HTML 输出路径（默认按稳定群 ID）")
     ap.add_argument("--png", help="PNG 输出路径（默认与 HTML 同名）")
     ap.add_argument("--no-png", action="store_true", help="不生成 PNG")
     ap.add_argument("--theme", default=None, choices=list(THEMES),
@@ -462,6 +466,15 @@ def main():
     from wechat_data import db, settings
     cfg = settings.require()
 
+    if not args.no_register:
+        date = str(story.get('date') or '')
+        username = story.get('username') or db.find_username(cfg, date, story.get('group_name', ''))
+        entry = db.get_entry(cfg, date, username) if username else None
+        if not entry:
+            print('[错误] 群身份不明确或没有对应归档，请指定 story.username。', file=sys.stderr)
+            return 3
+        story['username'] = username
+        story.setdefault('source_revision', entry['collection']['revision'])
     theme = args.theme or _theme_from_config(cfg, story)
 
     if args.out:

@@ -14,6 +14,14 @@ from . import config, content
 from .chat import Chat
 
 
+class CoverageError(RuntimeError):
+    def __init__(self, shard, code='SHARD_QUERY_FAILED'):
+        self.issues = [{'code': code, 'source': os.path.basename(shard),
+                        'message': '消息分片无法完整读取，请重新解密后重试。',
+                        'retryable': True, 'next_action': 'decrypt_and_retry_in_workbuddy'}]
+        super().__init__(f'{code}: {os.path.basename(shard)}')
+
+
 @dataclass
 class Message:
     local_id: int
@@ -25,6 +33,7 @@ class Message:
     text: str
     app: dict | None = None
     voice: dict | None = None
+    source_shard: str = ""
 
     @property
     def ts_str(self) -> str:
@@ -33,6 +42,7 @@ class Message:
     def to_dict(self) -> dict:
         return {
             "local_id": self.local_id,
+            "source_shard": self.source_shard,
             "time": self.ts_str,
             "sender": self.sender,
             "sender_id": self.sender_username,
@@ -136,16 +146,9 @@ class MessageReader:
 
     # ---------- 元数据 ----------
 
-    def _sender_map(self) -> dict[int, str]:
-        """Name2Id.rowid -> user_name（跨分片合并）"""
-        out = {}
-        for p in self.shard_paths:
-            try:
-                for rid, uname in self._conn(p).execute("select rowid, user_name from Name2Id"):
-                    out.setdefault(rid, uname)
-            except sqlite3.Error:
-                pass
-        return out
+    def _sender_map(self, path) -> dict[int, str]:
+        """Name2Id row IDs are local to the source shard."""
+        return dict(self._conn(path).execute("select rowid, user_name from Name2Id"))
 
     def _display_names(self, usernames: set[str]) -> dict[str, str]:
         out = {}
@@ -199,22 +202,27 @@ class MessageReader:
                 ).fetchone()
                 if not exists:
                     continue
-                rows.extend(self._conn(p).execute(
+                rows.extend((*row, p) for row in self._conn(p).execute(
                     f'select local_id, create_time, real_sender_id, local_type, message_content '
                     f'from "{table}" where create_time>=? and create_time<? order by create_time',
                     (s_ts, e_ts),
                 ).fetchall())
-            except sqlite3.Error:
-                continue
+            except sqlite3.Error as error:
+                raise CoverageError(p) from error
 
         rows.sort(key=lambda r: (r[1], r[0]))
         if limit:
             rows = rows[-limit:]
 
-        id2name = self._sender_map()
+        id2name = {}
+        for path in {r[5] for r in rows}:
+            try:
+                id2name[path] = self._sender_map(path)
+            except sqlite3.Error as error:
+                raise CoverageError(path, 'SENDER_MAP_FAILED') from error
         # 把 type49（App 消息）和 type34（语音）的 blob 收集起来一次性解压
         blob_positions, blobs = [], []
-        for i, (_lid, _ct, _sid, ltype, raw) in enumerate(rows):
+        for i, (_lid, _ct, _sid, ltype, raw, _path) in enumerate(rows):
             if content.base_type(ltype) in (49, 34) and isinstance(raw, (bytes, bytearray)):
                 blob_positions.append(i)
                 blobs.append(bytes(raw))
@@ -224,22 +232,22 @@ class MessageReader:
                 decoded[i] = out
 
         # 发送者
-        usernames = {id2name.get(r[2]) for r in rows if r[2] in id2name}
+        usernames = {id2name[r[5]].get(r[2]) for r in rows}
         usernames.discard(None)
         disp = self._display_names(usernames)
         # 兜底：从消息内容前缀里抽 wxid
-        def resolve_sender(sid, raw):
-            uname = id2name.get(sid, "")
+        def resolve_sender(sid, raw, path):
+            uname = id2name[path].get(sid, "")
             if not uname and isinstance(raw, str) and ":\n" in raw[:80]:
                 uname = raw.split(":\n", 1)[0]
             name = disp.get(uname) or uname or f"id{sid}"
             return name, uname
 
         msgs: list[Message] = []
-        for i, (lid, ct, sid, ltype, raw) in enumerate(rows):
+        for i, (lid, ct, sid, ltype, raw, path) in enumerate(rows):
             base = content.base_type(ltype)
             sub = content.sub_type(ltype)
-            sender, sender_uname = resolve_sender(sid, raw)
+            sender, sender_uname = resolve_sender(sid, raw, path)
             payload = decoded.get(i, raw if isinstance(raw, (bytes, bytearray)) else None)
             app = None
             voice = None
@@ -273,7 +281,8 @@ class MessageReader:
 
             msgs.append(Message(
                 local_id=lid,
-                ts=datetime.fromtimestamp(ct),
+                source_shard=os.path.basename(path),
+                ts=datetime.fromtimestamp(ct, start.tzinfo),
                 sender=sender,
                 sender_username=sender_uname,
                 base=base,

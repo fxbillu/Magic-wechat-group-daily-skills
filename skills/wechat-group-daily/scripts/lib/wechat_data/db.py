@@ -2,7 +2,7 @@
 
 ## 定位（最重要的一条）
 
-    data/<date>/<chat>.json   ← 真相源（产物，可读、可搬、可 git-ignore）
+    data/<date>/<群ID的sha256>.json   ← 真相源（产物，可读、可搬、可 git-ignore）
     data/index.db             ← 派生索引（可随时 rebuild，删了不丢数据）
 
 DB 不是主存储。任何时候删掉 `index.db`，跑一次 `rebuild()` 就从 json 全量恢复。
@@ -11,8 +11,8 @@ DB 不是主存储。任何时候删掉 `index.db`，跑一次 `rebuild()` 就�
 ## 为什么用 username 做主键
 
 群会改名（`群名` 只是属性），`username`（xxx@chatroom）才是稳定标识。
-现在 `archive.archive_path()` 用的是群名，同一个群改名后会生成两个文件，
-DB 里以 username 归并，能把这个历史问题兜住。
+归档与报告路径均使用群 ID 的散列；旧名称文件只按其自带的 username 重建。
+同一身份的冲突旧副本保留原文件，等待用户明确选择。
 
 ## 为什么不存完整消息体
 
@@ -249,7 +249,7 @@ def save_archive(cfg: dict, date: str, payload: dict, data_file: str) -> None:
             f"VALUES ({','.join('?' * len(ENTRY_COLS))}) "
             "ON CONFLICT(date, username) DO UPDATE SET "
             + ",".join(f"{c}=excluded.{c}" for c in ENTRY_COLS
-                       if c not in ("date", "username")),
+                       if c in row and c not in ("date", "username")),
             tuple(row.get(c) for c in ENTRY_COLS),
         )
         # 消息做全量替换：归档本身就是这一天这一群的全集
@@ -267,20 +267,15 @@ def find_username(cfg: dict, date: str, chat: str) -> str | None:
     """按 日期 + 群名 反查 username
 
     story.json 里只有 group_name 没有 username，渲染层要用它登记产物。
-    先精确匹配，再退到模糊（群名可能被截断或写法有差）。
+    仅允许稳定 ID 或唯一精确名称；同名和模糊名称必须由用户选择。
     """
     if not chat:
         return None
     cn = connect(cfg)
     try:
-        r = cn.execute(
-            "SELECT username FROM entry WHERE date=? AND chat=? LIMIT 1",
-            (date, chat)).fetchone()
-        if not r:
-            r = cn.execute(
-                "SELECT username FROM entry WHERE date=? AND chat LIKE ? "
-                "ORDER BY total DESC LIMIT 1", (date, f"%{chat}%")).fetchone()
-        return r["username"] if r else None
+        rows = cn.execute('SELECT username FROM entry WHERE date=? AND (username=? OR chat=?)',
+                          (date, chat, chat)).fetchall()
+        return rows[0]['username'] if len(rows) == 1 else None
     finally:
         cn.close()
 
@@ -293,6 +288,7 @@ def set_report(cfg: dict, date: str, username: str = "", html: str = "",
     username 为空时按 (date, chat) 或 story 里的 group_name 反查；
     查不到就返回 False，由调用方决定警告还是中断——不静默成功。
     """
+    username = username or (story or {}).get("username", "")
     if not username:
         username = find_username(
             cfg, date, chat or (story or {}).get("group_name", ""))
@@ -327,8 +323,16 @@ def set_report(cfg: dict, date: str, username: str = "", html: str = "",
     vals.append(time.strftime("%Y-%m-%d %H:%M:%S"))
     vals.extend([date, username])
     sql = f"UPDATE entry SET {','.join(sets)} WHERE date=? AND username=?"
-    return bool(_write(
-        cfg, lambda cn: cn.execute(sql, tuple(vals)).rowcount > 0))
+    updated = bool(_write(cfg, lambda cn: cn.execute(sql, tuple(vals)).rowcount > 0))
+    if updated:
+        from . import archive, collection
+        entry = get_entry(cfg, date, username)
+        record = {key: entry.get(key) for key in
+                  ('report_html', 'report_png', 'title', 'lead', 'cast', 'composed_at')}
+        record['source_revision'] = (story or {}).get('source_revision') or entry['collection']['revision']
+        record['composed_at'] = collection.now()
+        archive._atomic_write(collection.record_path(cfg, 'report-records', date, username), record)
+    return updated
 
 
 def rebuild(cfg: dict, verbose: bool = False) -> dict:
@@ -347,24 +351,41 @@ def rebuild(cfg: dict, verbose: bool = False) -> dict:
             d = os.path.join(root, date)
             if not (len(date) == 10 and date[4] == "-" and os.path.isdir(d)):
                 continue
-            for fn in sorted(os.listdir(d)):
-                if not fn.endswith(".json"):
-                    continue
-                try:
-                    with open(os.path.join(d, fn), encoding="utf-8") as f:
-                        payload = json.load(f)
-                except (json.JSONDecodeError, OSError):
+            from . import archive
+            groups = {}
+            for path, payload in archive.sources_of_day(cfg, date):
+                username = (payload or {}).get('chat', {}).get('username')
+                if not isinstance(username, str) or not username:
                     bad += 1
                     continue
-                rel = f"{date}/{fn}"
+                groups.setdefault(username, []).append((path, payload))
+            for username, candidates in groups.items():
+                chosen = archive.choose_source(cfg, date, username, candidates)
+                if not chosen:
+                    bad += len(candidates)
+                    continue
+                path, payload = chosen
+                rel = os.path.relpath(path, root).replace('\\', '/')
                 try:
                     save_archive(cfg, date, payload, rel)
                     n += 1
-                    nm += len(payload.get("messages", []))
+                    nm += len(payload.get('messages', []))
                 except (ValueError, sqlite3.Error):
                     bad += 1
                 if verbose:
-                    print(f"  + {rel}")
+                    print(f'  + {rel}')
+        # Failed first attempts have no material JSON, but remain historical facts.
+        from . import collection
+        attempts = Path(root) / 'collections'
+        for path in sorted(attempts.glob('*/*.json')):
+            record = collection.read_record(path)
+            chat = record.get('chat') or {}
+            date, username = record.get('date'), chat.get('username')
+            if date and username and record.get('collection', {}).get('state') == 'failed':
+                with cn:
+                    cn.execute('INSERT INTO entry(date,username,chat,kind) VALUES(?,?,?,?) '
+                               'ON CONFLICT(date,username) DO NOTHING',
+                               (date, username, chat.get('name') or username, 'group'))
         # 产物登记：磁盘上已有的 html/png 补回 entry（rebuild 会清空这两列）
         _relink_reports(cfg, cn)
     finally:
@@ -379,6 +400,17 @@ def _relink_reports(cfg: dict, cn: sqlite3.Connection) -> None:
     `reports/<date>/<群名>.story.json` 是它的叙事源。后者必须一起落盘，
     否则 rebuild 之后标题/首句/人物会全丢——那些字段只存在 DB 里。
     """
+    from . import collection
+    for row in cn.execute('SELECT date,username FROM entry').fetchall():
+        record = collection.read_record(collection.record_path(
+            cfg, 'report-records', row['date'], row['username']))
+        if record:
+            with cn:
+                cn.execute('UPDATE entry SET report_html=?,report_png=?,title=?,lead=?,cast_json=?,composed_at=? '
+                           'WHERE date=? AND username=?',
+                           (record.get('report_html'), record.get('report_png'), record.get('title'),
+                            record.get('lead'), json.dumps(record.get('cast') or []), record.get('composed_at'),
+                            row['date'], row['username']))
     rep = settings.reports_dir(cfg)
     if not os.path.isdir(rep):
         return
@@ -393,8 +425,9 @@ def _relink_reports(cfg: dict, cn: sqlite3.Connection) -> None:
                 col = "report_html" if ext == ".html" else "report_png"
                 with cn:
                     cn.execute(
-                        f"UPDATE entry SET {col}=? WHERE date=? AND chat=?",
-                        (f"{date}/{fn}", date, stem))
+                        f"UPDATE entry SET {col}=? WHERE date=? AND chat=? AND {col} IS NULL "
+                        "AND (SELECT COUNT(*) FROM entry WHERE date=? AND chat=?)=1",
+                        (f"{date}/{fn}", date, stem, date, stem))
             elif fn.endswith(".story.json"):
                 base = fn[:-len(".story.json")]
                 try:
@@ -411,10 +444,11 @@ def _relink_reports(cfg: dict, cn: sqlite3.Connection) -> None:
                 with cn:
                     cn.execute(
                         "UPDATE entry SET title=?, lead=?, cast_json=?, composed_at=? "
-                        "WHERE date=? AND chat=?",
+                        "WHERE date=? AND chat=? AND composed_at IS NULL "
+                        "AND (SELECT COUNT(*) FROM entry WHERE date=? AND chat=?)=1",
                         (title, lead,
                          json.dumps(cast, ensure_ascii=False) if cast else None,
-                         ts, date, base))
+                         ts, date, base, date, base))
 
 
 def dump_json(cfg: dict) -> str:
@@ -473,38 +507,17 @@ def _state(cfg: dict, e: dict) -> str:
     单人单向的公告群每天都会是空料，把这种必然显示成 pending，
     视图里就永远挂着两笔假账，真出问题时反而看不见。
     """
-    has_data = bool(e.get("data_file")) and os.path.exists(
-        os.path.join(settings.data_dir(cfg), e["data_file"]))
-
-    # 报表是否算数，要以磁盘为准，不能只看索引里有没有字符串。
-    # 索引是派生的，两个方向都会说谎：
-    #   登记了但文件被删/没写成 → views 说"已出"，点进去是死链；
-    #   文件已经躺在那儿、登记却被中断 → views 说"欠一份"，于是重复出稿。
-    # 前端会把这个状态直接画成链接和进度，两种错都得治。
-    reports_root = settings.reports_dir(cfg)
-
-    def _report_exists(rel) -> bool:
-        return bool(rel) and os.path.exists(
-            os.path.join(reports_root, str(rel).replace("/", os.sep)))
-
-    if _report_exists(e.get("report_html")) or _report_exists(e.get("report_png")):
-        has_report = True
-    else:
-        # 索引写空时，按约定路径回查一次
-        guess = os.path.join(reports_root, str(e.get("date") or ""),
-                             f"{e.get('chat') or ''}.html")
-        has_report = os.path.exists(guess)
-    if has_data and has_report:
-        return "ready"
-    if has_report:
-        return "orphan"
-    if has_data:
-        enough, _why = material.sufficient(
-            int(e.get("total") or 0), int(e.get("chars") or 0),
-            int(e.get("unique_senders") or 0))
-        if not enough:
-            return "empty"
-    return "pending"
+    from . import collection
+    collection.decorate(cfg, e)
+    if e['report']['state'] in ('ready', 'stale'):
+        return 'ready'
+    if e['report']['state'] == 'orphan':
+        return 'orphan'
+    if e['report']['state'] == 'insufficient':
+        return 'empty'
+    if e['collection']['state'] in ('not_collected', 'failed') and not e.get('data_file'):
+        return 'missing'
+    return 'pending'
 
 
 def get_entry(cfg: dict, date: str, username: str) -> dict | None:
@@ -542,6 +555,9 @@ def by_day(cfg: dict, date: str, include_configured: bool = True) -> dict:
                     "cast": [], "archived_at": None, "composed_at": None,
                     "state": "missing",
                 })
+    from . import collection
+    for row in rows:
+        collection.decorate(cfg, row)
     rows.sort(key=lambda x: -x.get("total", 0))
     return {
         "date": date,
@@ -687,6 +703,14 @@ def recent_days(cfg: dict, limit_days: int = 7) -> list:
     return out
 
 
+
+def _missing_cell(cfg, date, chat):
+    from . import collection
+    entry = {'date': date, 'username': chat['username'], 'total': 0, 'ready': False, 'state': 'missing'}
+    collection.decorate(cfg, entry)
+    return entry
+
+
 def matrix(cfg: dict, days: int = 14) -> dict:
     """全景矩阵：行=群，列=日期
 
@@ -710,10 +734,12 @@ def matrix(cfg: dict, days: int = 14) -> dict:
                 "SELECT * FROM entry WHERE date >= ?",
                 (dates[0] if dates else "",)):
             e = _entry_row(r)
+            legacy_state = _state(cfg, e)
             cells[(e["date"], e["username"])] = {
-                "total": e["total"],
-                "ready": bool(e.get("report_png") or e.get("report_html")),
-                "state": _state(cfg, e),
+                "date": e["date"], "total": e["total"],
+                "ready": bool(e["report"]["html_url"]),
+                "state": legacy_state,
+                "collection": e["collection"], "report": e["report"],
             }
         # 配置里监控但从未归档的群也要出现在矩阵里（否则会"消失得无声无息"）
         known = {c["username"] for c in chats}
@@ -723,14 +749,13 @@ def matrix(cfg: dict, days: int = 14) -> dict:
                 chats.append({"username": u, "chat": c.get("name", u)})
                 known.add(u)
 
+        from . import collection
         grid = []
         for c in chats:
             grid.append({
                 "username": c["username"],
                 "chat": c["chat"],
-                "cells": [{"date": d, **cells.get((d, c["username"]),
-                                                  {"total": 0, "ready": False,
-                                                   "state": "missing"})}
+                "cells": [cells.get((d, c["username"])) or _missing_cell(cfg, d, c)
                           for d in dates],
             })
         return {"dates": dates, "rows": grid}

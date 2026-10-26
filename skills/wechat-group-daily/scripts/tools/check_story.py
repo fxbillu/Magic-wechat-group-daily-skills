@@ -46,15 +46,18 @@ def is_cjk(ch: str) -> bool:
 
 
 def load_archive(args) -> dict:
-    path = args.archive
-    if not path:
-        cfg = settings.require()
-        path = os.path.join(settings.data_dir(cfg), args.date or "",
-                            f"{args.assess or ''}.json")
-    if not os.path.exists(path):
-        print(f"[错误] 找不到归档 {path}")
-        return None
-    return json.load(open(path, encoding="utf-8"))
+    if args.archive:
+        try:
+            with open(args.archive, encoding='utf-8') as source:
+                return json.load(source)
+        except (OSError, ValueError):
+            print('[错误] 无法读取指定归档')
+            return None
+    from wechat_data import archive
+    result = archive.load(settings.require(), args.date or '', args.assess or '')
+    if result is None:
+        print('[错误] 找不到唯一归档，请使用稳定群 ID 或 --archive。')
+    return result
 
 
 def assess(args) -> int:
@@ -114,14 +117,15 @@ def main() -> int:
     group = story.get("group_name", "")
     date = story.get("date", "")
 
-    arc_path = args.archive
-    if not arc_path:
-        cfg = settings.require()
-        arc_path = os.path.join(settings.data_dir(cfg), date, f"{group}.json")
-    if not os.path.exists(arc_path):
-        print(f"[错误] 找不到归档 {arc_path}")
+    if args.archive:
+        with open(args.archive, encoding='utf-8') as source:
+            arch = json.load(source)
+    else:
+        from wechat_data import archive
+        arch = archive.load(settings.require(), date, story.get('username') or group)
+    if arch is None:
+        print('[错误] 找不到唯一归档，请指定 story.username 或 --archive。')
         return 1
-    arch = json.load(open(arc_path, encoding="utf-8"))
     msgs = arch.get("messages", [])
     texts = {str(m.get("text", "")) for m in msgs}
     spokes = {str(m.get("sender", "")) for m in msgs}

@@ -194,13 +194,21 @@ def api_messages(qs: dict, cfg: dict) -> tuple:
 
     entry = db.get_entry(cfg, date, username)
     if not entry:
+        day = db.by_day(cfg, date)
+        entry = next((e for e in day['chats'] if e['username'] == username), None)
+    if entry and entry['collection']['state'] == 'failed' and not entry.get('data_file'):
+        return {'error': '采集失败，尚无成功素材，请在 WorkBuddy 中重试。',
+                'code': 'COLLECTION_FAILED', 'retryable': True,
+                'next_action': 'decrypt_and_retry_in_workbuddy',
+                'collection': entry['collection']}, 409
+    if not entry:
         return {"error": "该群这一天没有归档", "date": date}, 404
 
     offset = _clamp(_one(qs, "offset", "0"), 0, 100000, 0)
     limit = _clamp(_one(qs, "limit", str(MESSAGES_LIMIT_DEFAULT)),
                    1, MESSAGES_LIMIT_MAX, MESSAGES_LIMIT_DEFAULT)
 
-    payload = archive.load(cfg, date, entry["chat"]) or {}
+    payload = archive.load(cfg, date, username) or {}
     all_msgs = payload.get("messages") or []
     page = all_msgs[offset:offset + limit]
     return {
@@ -208,6 +216,7 @@ def api_messages(qs: dict, cfg: dict) -> tuple:
         "username": username,
         "chat": entry["chat"],
         "state": entry["state"],
+        "collection": entry["collection"], "report": entry["report"],
         "total": len(all_msgs),
         "offset": offset,
         "limit": limit,

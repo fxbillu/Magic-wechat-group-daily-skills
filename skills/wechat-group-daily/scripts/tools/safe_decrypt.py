@@ -14,6 +14,7 @@
     python safe_decrypt.py --db-dir <原始 db_storage> --keys all_keys.json --output decrypted
     python safe_decrypt.py --db-dir ... --only message/message_0.db   # 只解一个
 """
+from contextlib import closing
 import argparse
 import json
 import os
@@ -118,10 +119,14 @@ def decrypt_page(enc_key: bytes, page: bytes, pgno: int) -> bytes:
     return plain + b"\x00" * RESERVE_SZ
 
 
-def decrypt_one(src: str, dst: str, enc_key: bytes, quiet: bool = False) -> dict:
+def _decrypt_candidate(src: str, dst: str, enc_key: bytes, quiet: bool = False) -> dict:
     """解密单个库：验 key → 稳定快照 → 逐页解密 → 校验输出"""
     info = {"src": src, "dst": dst, "ok": False, "reason": "", "pages": 0}
 
+    wal = src + '-wal'
+    if os.path.isfile(wal) and os.path.getsize(wal):
+        info['reason'] = 'WAL 未合并；当前路线不能确认完整覆盖，请先取得已合并 WAL 的快照。'
+        return info
     size = os.path.getsize(src)
     if size < PAGE_SZ:
         info["reason"] = "文件太小"
@@ -144,6 +149,17 @@ def decrypt_one(src: str, dst: str, enc_key: bytes, quiet: bool = False) -> dict
             info["reason"] = f"无法取得稳定快照：{msg}"
             return info
 
+        if os.path.isfile(wal) and os.path.getsize(wal):
+            info['reason'] = 'WAL 在复制期间出现，无法确认完整覆盖。'
+            return info
+        size = os.path.getsize(snap)
+        if size % PAGE_SZ:
+            info['reason'] = '库页不完整'
+            return info
+        with open(snap, 'rb') as snapshot:
+            if not verify_key(enc_key, snapshot.read(PAGE_SZ)):
+                info['reason'] = '快照密钥校验失败'
+                return info
         total = size // PAGE_SZ
         os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
         with open(snap, "rb") as fin, open(dst, "wb") as fout:
@@ -182,6 +198,28 @@ def decrypt_one(src: str, dst: str, enc_key: bytes, quiet: bool = False) -> dict
     return info
 
 
+
+def decrypt_one(src: str, dst: str, enc_key: bytes, quiet: bool = False) -> dict:
+    """Publish only a validated candidate; failures leave the previous DB intact."""
+    os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
+    fd, candidate = tempfile.mkstemp(suffix='.candidate', dir=os.path.dirname(dst))
+    os.close(fd)
+    try:
+        info = _decrypt_candidate(src, candidate, enc_key, quiet)
+        if info['ok']:
+            with closing(sqlite3.connect(f'file:{candidate}?mode=ro', uri=True)) as cn:
+                if cn.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+                    info.update(ok=False, reason='解密产物完整性校验失败')
+            if info['ok']:
+                os.replace(candidate, dst)
+        info['dst'] = dst
+        return info
+    except (OSError, ValueError, sqlite3.Error) as error:
+        return {'ok': False, 'reason': type(error).__name__, 'src': src, 'dst': dst}
+    finally:
+        if os.path.exists(candidate):
+            os.remove(candidate)
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db-dir", required=True, help="原始 db_storage")
@@ -217,39 +255,41 @@ def main():
         print("[错误] 没有可解密的目标")
         return 2
 
+    from wechat_data import guard
+    required = guard.required_files(args.db_dir)
+    required.update(rel.replace('\\', '/') for rel in keys if not rel.startswith('_')
+                    and guard.is_core(rel.replace('\\', '/')))
     ok = fail = 0
-    files_meta = {}
+    files_meta, failures = {}, {}
     for rel, val in targets:
-        src = os.path.join(args.db_dir, rel.replace("\\", "/"))
-        dst = os.path.join(out_dir, rel.replace("\\", "/"))
-        if not os.path.exists(src):
-            print(f"[跳过] 源文件不存在: {rel}")
+        rel = rel.replace('\\', '/')
+        if os.path.isabs(rel) or '..' in rel.split('/'):
+            failures['invalid-target'] = 'INVALID_DATABASE_PATH'
+            fail += 1
             continue
+        src = os.path.join(args.db_dir, rel)
+        dst = os.path.join(out_dir, rel)
+        print(f'[解密] {rel}', flush=True)
         try:
-            st = os.stat(src)
-            files_meta[rel.replace("\\", "/")] = {"size": st.st_size,
-                                                  "mtime": int(st.st_mtime)}
-        except OSError:
-            pass
-        t0 = time.time()
-        print(f"[解密] {rel} ({os.path.getsize(src) / 1024 / 1024:.1f}MB) ...", flush=True)
-        info = decrypt_one(src, dst, bytes.fromhex(val["enc_key"]))
-        if info["ok"]:
+            info = decrypt_one(src, dst, bytes.fromhex(val['enc_key']))
+        except (OSError, ValueError, KeyError):
+            info = {'ok': False, 'reason': '源库或密钥不可用'}
+        if info['ok']:
             ok += 1
-            print(f"   OK  {info['pages']} 页 / {info['tables']} 表 / "
-                  f"{info.get('snapshot', '')} / {time.time() - t0:.1f}s")
+            stat = os.stat(src)
+            files_meta[rel] = {'size': stat.st_size, 'mtime': int(stat.st_mtime),
+                               'verified_at': int(time.time())}
+            print('   OK')
         else:
             fail += 1
+            failures[rel] = 'DECRYPTION_FAILED'
             print(f"   失败: {info['reason']}")
-
-    # 记录解密时刻，供下游做新鲜度校验
-    if ok:
-        try:
-            from wechat_data import guard
-            p = guard.write_stamp(out_dir, files_meta, os.path.abspath(args.db_dir))
-            print(f"\n[时间戳] 已写入 {p}")
-        except Exception as e:
-            print(f"\n[warn] 时间戳写入失败：{e}")
+    stamp = guard.write_stamp(out_dir, files_meta, os.path.abspath(args.db_dir),
+                              required=required, failures=failures)
+    coverage = guard.coverage(out_dir)
+    if not coverage['complete']:
+        fail = max(fail, 1)
+        print('[失败] 核心库覆盖未完成，不能作为完整素材快照。')
 
     print(f"完成：成功 {ok}，失败 {fail}")
     return 0 if fail == 0 else 1
