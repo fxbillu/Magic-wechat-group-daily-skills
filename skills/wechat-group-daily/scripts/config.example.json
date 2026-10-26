@@ -1,0 +1,38 @@
+{
+  "_说明": "这是出厂模板，不要直接改它。跑 python tools/setup.py 会生成属于这台机器的 config.json（已随版本库忽略）。paths 留空表示尚未初始化，命令会拒绝运行并提示你跑向导。",
+  "version": 1,
+  "created_at": "",
+  "wechat": {
+    "data_root": "",
+    "db_dir": "",
+    "account": ""
+  },
+  "paths": {
+    "root": "",
+    "decrypted": "",
+    "data": "",
+    "reports": "",
+    "secrets": "",
+    "logs": ""
+  },
+  "chats": [],
+  "collect": {
+    "initial_days": 7,
+    "overlap_days": 1,
+    "max_age_hours": 24,
+    "schedule": ["08:00", "20:00"]
+  },
+  "compose": {
+    "time": "08:30",
+    "target_day": "yesterday",
+    "theme": "magazine",
+    "formats": ["html", "png"]
+  },
+  "retention": {
+    "data_days": 30
+  },
+  "degrade": {
+    "allow_no_node": true,
+    "allow_no_browser": true
+  }
+}

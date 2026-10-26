@@ -1,0 +1,10 @@
+{
+  "chat": {"username": "fixture-team", "name": "示例群", "kind": "group"},
+  "date": "2026-10-25",
+  "archived_at": "2026-10-26 08:30:00",
+  "stats": {"total": 2, "chars": 44, "unique_senders": 2, "text_count": 2},
+  "messages": [
+    {"local_id": 1, "time": "2026-10-25 09:00:00", "sender": "测试成员甲", "sender_id": "fixture-person-a", "type": "text", "text": "这是一条完全合成的测试消息，用于验证阅读入口。"},
+    {"local_id": 2, "time": "2026-10-25 09:02:00", "sender": "测试成员乙", "sender_id": "fixture-person-b", "type": "text", "text": "测试页面应该显示示例群，并保留消息的日期。"}
+  ]
+}

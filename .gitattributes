@@ -1,0 +1,2 @@
+# Keep portable source text consistent in macOS and Windows checkouts.
+* text=auto eol=lf

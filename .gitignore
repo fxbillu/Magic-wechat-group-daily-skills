@@ -2,3 +2,24 @@
 .env
 .env.*
 !.env.example
+
+# Imported backups contain local secrets and conversation data.
+/legacy-import/
+
+# Python/test byproducts; fixtures and config templates stay tracked.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Personal state must never be checked into a Skill source directory.
+/skills/*/scripts/config.json
+/skills/*/scripts/tools/all_keys.json
+/skills/*/scripts/.stamp.json
+/skills/*/scripts/data/
+/skills/*/scripts/reports/
+/skills/*/scripts/decrypted/
+/skills/*/scripts/secrets/
+/skills/*/scripts/logs/
+/skills/*/dist/
