@@ -557,7 +557,8 @@ def by_day(cfg: dict, date: str, include_configured: bool = True) -> dict:
                 })
     from . import collection
     for row in rows:
-        collection.decorate(cfg, row)
+        if "collection" not in row:
+            collection.decorate(cfg, row)
     rows.sort(key=lambda x: -x.get("total", 0))
     return {
         "date": date,
@@ -749,7 +750,6 @@ def matrix(cfg: dict, days: int = 14) -> dict:
                 chats.append({"username": u, "chat": c.get("name", u)})
                 known.add(u)
 
-        from . import collection
         grid = []
         for c in chats:
             grid.append({

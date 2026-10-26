@@ -176,26 +176,44 @@ def cmd_archive(args):
     if not targets:
         print('[错误] 用 --config 或 --chats 指定要采集的群', file=sys.stderr)
         return 1
-    directory = config.db_dir(args.db_dir)
+    directory = args.db_dir or os.environ.get('WECHAT_DATA_DIR') or st.decrypted_dir(cfg)
     verified = guard.coverage(directory)
-    resolver = ChatResolver(directory) if verified['complete'] else None
+    resolver = ChatResolver(directory) if os.path.isfile(os.path.join(directory, 'contact/contact.db')) else None
     saved = failures = 0
     for date in _date_list(args):
         start, end = parse_range(date=date)
-        start, end, _ = collection.day_range(cfg, start, end)
         issues = verified['issues']
-        if verified['complete']:
-            freshness = guard.check(directory, args.max_age_hours or 24, target_date=date)
-            if not freshness['fresh'] and not args.allow_stale:
-                issues = [{'code': 'SNAPSHOT_STALE', 'source': 'snapshot',
+        try:
+            start, end, _ = collection.day_range(cfg, start, end)
+        except collection.TimezoneUnavailable as error:
+            issues = error.issues
+        if verified['complete'] and not issues:
+            freshness = guard.check(directory, args.max_age_hours or 24, target_date=date,
+                                    target_end=end.timestamp())
+            if not freshness['fresh'] and (freshness.get('code') == 'SNAPSHOT_INCOMPLETE'
+                                           or not args.allow_stale):
+                issues = [{'code': freshness.get('code') or 'SNAPSHOT_STALE', 'source': 'snapshot',
                            'message': '快照未覆盖目标日期或已经过期。', 'retryable': True,
                            'next_action': 'decrypt_and_retry_in_workbuddy'}]
         for target in targets:
             fallback = next((c for c in configured if c['username'] == target), {})
-            chat = Chat(target, fallback.get('name') or target, kind='group')
+            chat = None
             try:
-                if resolver:
-                    chat = resolver.get(target) if args.config else resolver.resolve(target, kind='group')
+                if args.config or fallback or target.endswith('@chatroom'):
+                    chat = Chat(target, fallback.get('name') or target, kind='group')
+                else:
+                    candidates = [Chat(c['username'], c.get('name') or c['username'], kind='group')
+                                  for c in configured if c.get('name') == target]
+                    if len(candidates) > 1:
+                        raise AmbiguousChat(target, candidates)
+                    if candidates:
+                        chat = candidates[0]
+                    elif resolver:
+                        chat = resolver.resolve(target, kind='group')
+                    else:
+                        raise LookupError('无法确认群身份，请选择稳定群 ID。')
+                if resolver and verified['complete']:
+                    chat = resolver.get(chat.username)
                 if issues:
                     collection.failed(cfg, date, chat, start, end, issues)
                     failures += 1
@@ -216,8 +234,9 @@ def cmd_archive(args):
                     'code': 'SOURCE_UNREADABLE', 'source': 'snapshot',
                     'message': '核心数据库无法读取，请检查并重新解密。', 'retryable': True,
                     'next_action': 'decrypt_and_retry_in_workbuddy'}]
-                collection.failed(cfg, date, chat, start, end, details)
-                print(f"[失败] {date} {chat.username}: {details[0]['code']}", file=sys.stderr)
+                if chat is not None:
+                    collection.failed(cfg, date, chat, start, end, details)
+                print(f"[失败] {date}: {details[0]['code']}", file=sys.stderr)
     print(f'完成：{saved} 份归档，{failures} 个失败')
     return 1 if failures else 0
 

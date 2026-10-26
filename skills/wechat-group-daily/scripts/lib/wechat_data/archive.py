@@ -132,6 +132,15 @@ def choose_source(cfg, date, username, candidates):
 
 
 def load(cfg: dict, date: str, identity: str) -> dict | None:
+    canonical = archive_path(cfg, date, identity)
+    if os.path.isfile(canonical):
+        try:
+            with open(canonical, encoding='utf-8') as source:
+                payload = json.load(source)
+            if payload.get('chat', {}).get('username') == identity:
+                return payload
+        except (ValueError, AttributeError, OSError):
+            return None
     sources = [(path, payload) for path, payload in sources_of_day(cfg, date) if payload]
     by_id = [(path, payload) for path, payload in sources
              if payload['chat'].get('username') == identity]

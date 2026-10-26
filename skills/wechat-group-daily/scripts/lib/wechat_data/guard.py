@@ -183,7 +183,8 @@ def covers_date(decrypted_at: float, date_str: str) -> bool | None:
 
 def check(db_dir: str, max_age_hours: float = 24.0,
           tolerance_s: float | None = None,
-          target_date: str | None = None) -> dict:
+          target_date: str | None = None,
+          target_end: float | None = None) -> dict:
     """返回新鲜度状态
 
     fresh   : 能不能拿这份快照去干活
@@ -214,6 +215,14 @@ def check(db_dir: str, max_age_hours: float = 24.0,
 
     now = time.time()
     age_h = (now - st["decrypted_at"]) / 3600.0
+
+    if target_end is not None:
+        complete = st['decrypted_at'] >= target_end
+        return {'fresh': complete, 'age_hours': round(age_h, 2),
+                'decrypted_at': st.get('decrypted_at_str'), 'stale_files': [],
+                'critical_stale': [], 'code': None if complete else 'SNAPSHOT_INCOMPLETE',
+                'reason': '逐库快照已覆盖目标区间' if complete else '逐库快照早于目标区间结束',
+                'action': '' if complete else '目标区间结束后重新解密核心库'}
 
     # ---- 判据一：要出历史某一天 → 只问快照盖不盖得住那天 ----
     # 只对**早于今天**的日期成立。今天一天还没过完，"解密晚于该日结束"永远不成立，

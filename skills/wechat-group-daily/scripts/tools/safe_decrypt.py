@@ -125,7 +125,7 @@ def _decrypt_candidate(src: str, dst: str, enc_key: bytes, quiet: bool = False) 
 
     wal = src + '-wal'
     if os.path.isfile(wal) and os.path.getsize(wal):
-        info['reason'] = 'WAL 未合并；当前路线不能确认完整覆盖，请先取得已合并 WAL 的快照。'
+        info['reason'] = '检测到非空 WAL，覆盖尚未核验；当前路线不能确认完整覆盖。'
         return info
     size = os.path.getsize(src)
     if size < PAGE_SZ:
@@ -150,7 +150,7 @@ def _decrypt_candidate(src: str, dst: str, enc_key: bytes, quiet: bool = False) 
             return info
 
         if os.path.isfile(wal) and os.path.getsize(wal):
-            info['reason'] = 'WAL 在复制期间出现，无法确认完整覆盖。'
+            info['reason'] = '复制期间检测到非空 WAL，覆盖尚未核验。'
             return info
         size = os.path.getsize(snap)
         if size % PAGE_SZ:
@@ -179,9 +179,8 @@ def _decrypt_candidate(src: str, dst: str, enc_key: bytes, quiet: bool = False) 
 
     # 校验输出确实是可读的 SQLite
     try:
-        cn = sqlite3.connect(f"file:{dst}?mode=ro", uri=True)
-        n = cn.execute("select count(*) from sqlite_master").fetchone()[0]
-        cn.close()
+        with closing(sqlite3.connect(f"file:{dst}?mode=ro", uri=True)) as cn:
+            n = cn.execute("select count(*) from sqlite_master").fetchone()[0]
         if n <= 0:
             # 只有一两页的空库（如 weclaw.db）本来就没有表，不算失败
             if info["pages"] <= 2:
@@ -214,7 +213,7 @@ def decrypt_one(src: str, dst: str, enc_key: bytes, quiet: bool = False) -> dict
                 os.replace(candidate, dst)
         info['dst'] = dst
         return info
-    except (OSError, ValueError, sqlite3.Error) as error:
+    except (OSError, ValueError, sqlite3.Error, ImportError) as error:
         return {'ok': False, 'reason': type(error).__name__, 'src': src, 'dst': dst}
     finally:
         if os.path.exists(candidate):

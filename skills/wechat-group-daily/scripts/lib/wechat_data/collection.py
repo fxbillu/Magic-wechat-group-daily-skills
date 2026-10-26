@@ -1,11 +1,11 @@
 """Durable collection attempts and version metadata, separate from successful material."""
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import settings
 
@@ -14,9 +14,18 @@ def now():
     return datetime.now().astimezone().isoformat(timespec='seconds')
 
 
+class TimezoneUnavailable(ValueError):
+    issues = [{'code': 'TIMEZONE_UNAVAILABLE', 'source': 'timezone',
+               'message': '配置的时区不可用，请为当前 Python 配置 IANA 时区数据后再采集。',
+               'retryable': False, 'next_action': 'repair_timezone_in_workbuddy'}]
+
+
 def day_range(cfg, start, end):
     timezone = (cfg.get('compose') or {}).get('timezone')
-    zone = ZoneInfo(timezone) if timezone else None
+    try:
+        zone = datetime_timezone.utc if timezone == 'UTC' else (ZoneInfo(timezone) if timezone else None)
+    except (ZoneInfoNotFoundError, ValueError) as error:
+        raise TimezoneUnavailable('TIMEZONE_UNAVAILABLE') from error
     start = start.replace(tzinfo=zone).astimezone() if zone is None else start.replace(tzinfo=zone)
     end = end.replace(tzinfo=zone).astimezone() if zone is None else end.replace(tzinfo=zone)
     return start, end, {'from': start.isoformat(), 'to': end.isoformat(), 'timezone': timezone}
@@ -43,7 +52,10 @@ def read_record(path):
 
 def failed(cfg, date, chat, start, end, issues):
     from . import archive, db
-    _, _, span = day_range(cfg, start, end)
+    try:
+        _, _, span = day_range(cfg, start, end)
+    except TimezoneUnavailable:
+        span = None
     record = {'state': 'failed', 'revision': None, 'message_count': None,
               'observed_at': now(), 'range': span,
               'coverage': {'complete': False, 'issues': issues}}

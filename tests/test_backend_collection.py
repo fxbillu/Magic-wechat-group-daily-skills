@@ -228,6 +228,60 @@ class CollectionTest(unittest.TestCase):
             self.assertEqual(endpoint(base, 'messages', date=DAY, username=GROUPS[0])['messages'][0]['text'], '甲的合成消息')
             self.assertTrue((directory / '旧群名.json').exists())
 
+    def test_missing_iana_timezone_data_is_a_durable_actionable_failure(self):
+        with reader() as (root, package, cp, env, base):
+            prepare(root, cp)
+            env = dict(env, PYTHONTZPATH=str(root / 'no-timezone-database'))
+            result = cli(package, env, 'archive', '--config', '--date', DAY)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('Traceback', result.stderr)
+            entry = endpoint(base, 'entry', date=DAY, username=GROUPS[0])
+            self.assertEqual(entry['collection']['state'], 'failed')
+            issue = entry['collection']['coverage']['issues'][0]
+            self.assertEqual(issue['code'], 'TIMEZONE_UNAVAILABLE')
+            self.assertEqual(issue['next_action'], 'repair_timezone_in_workbuddy')
+            self.assertFalse(issue['retryable'])
+
+    def test_snapshot_must_cover_configured_timezone_day_end(self):
+        with reader() as (root, package, cp, env, base):
+            snap, cfg = prepare(root, cp)
+            cfg['compose']['timezone'] = 'America/New_York'
+            cp.write_text(json.dumps(cfg))
+            env = dict(env, TZ='UTC')
+            stamp = json.loads((snap / '.stamp.json').read_text())
+            cutoff = int(datetime.fromisoformat('2026-10-26T02:00:00+00:00').timestamp())
+            stamp['decrypted_at'] = cutoff
+            for meta in stamp['files'].values():
+                meta['verified_at'] = cutoff
+            (snap / '.stamp.json').write_text(json.dumps(stamp))
+            result = cli(package, env, 'archive', '--config', '--date', DAY, '--allow-stale')
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            entry = endpoint(base, 'entry', date=DAY, username=GROUPS[0])
+            self.assertEqual(entry['collection']['state'], 'failed')
+            self.assertEqual(entry['collection']['range']['to'], '2026-10-26T00:00:00-04:00')
+            self.assertEqual(entry['collection']['coverage']['issues'][0]['code'], 'SNAPSHOT_INCOMPLETE')
+            cutoff = int(datetime.fromisoformat('2026-10-26T04:00:00+00:00').timestamp())
+            stamp['decrypted_at'] = cutoff
+            for meta in stamp['files'].values():
+                meta['verified_at'] = cutoff
+            (snap / '.stamp.json').write_text(json.dumps(stamp))
+            result = cli(package, env, 'archive', '--config', '--date', DAY)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(endpoint(base, 'entry', date=DAY, username=GROUPS[0])['collection']['state'], 'collected')
+
+    def test_failed_name_selection_never_creates_a_name_as_group_id(self):
+        with reader() as (root, package, cp, env, base):
+            snap, cfg = prepare(root, cp, names=('单一名称群', '另一个群'))
+            (snap / '.stamp.json').unlink()
+            result = cli(package, env, 'archive', '--chats', '单一名称群', '--date', DAY)
+            self.assertNotEqual(result.returncode, 0)
+            day = endpoint(base, 'day', date=DAY)
+            self.assertEqual({row['username'] for row in day['chats']}, set(GROUPS))
+            self.assertEqual(endpoint(base, 'entry', date=DAY, username=GROUPS[0])['collection']['state'], 'failed')
+            result = cli(package, env, 'archive', '--chats', '无法确认的群名', '--date', DAY)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual({row['username'] for row in endpoint(base, 'day', date=DAY)['chats']}, set(GROUPS))
+
 
 if __name__ == '__main__':
     unittest.main()
