@@ -79,7 +79,7 @@ class DecryptionTest(unittest.TestCase):
             self.assertEqual(entry['collection']['coverage']['issues'][0]['code'], 'DECRYPTION_INCOMPLETE')
             self.assertEqual(endpoint(base, 'messages', date=DAY, username=GROUPS[0])['total'], 1)
 
-    def test_nonempty_source_wal_is_an_explicit_coverage_failure(self):
+    def test_nonempty_source_wal_is_reported_without_blocking_original_copy_path(self):
         with reader() as (root, package, cp, env, base):
             snap, cfg = prepare(root, cp)
             source = root / 'source'
@@ -87,13 +87,16 @@ class DecryptionTest(unittest.TestCase):
             encrypted_fixture(source / 'other/ok.db', key)
             (source / 'other/ok.db-wal').write_bytes(b'synthetic active WAL')
             keys = root / 'keys.json'
-            keys.write_text(json.dumps({'other/ok.db': {'enc_key': key.hex()}}))
+            encrypted_fixture(source / 'contact/contact.db', key)
+            encrypted_fixture(source / 'message/message_0.db', key)
+            keys.write_text(json.dumps({rel: {'enc_key': key.hex()} for rel in
+                                       ('other/ok.db', 'contact/contact.db', 'message/message_0.db')}))
             result = subprocess.run([sys.executable, '-B', str(package / 'scripts/tools/safe_decrypt.py'),
                                      '--db-dir', str(source), '--keys', str(keys), '--output', str(snap)],
                                     env=platform_aes_double(root, env), text=True, capture_output=True, timeout=15)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertFalse((snap / 'other/ok.db').exists(), result.stdout)
-            self.assertIn('WAL', result.stdout)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((snap / 'other/ok.db').exists(), result.stdout)
+            self.assertIn('SOURCE_WAL_OBSERVED', result.stdout)
 
     def test_unkeyed_core_shard_and_rebuilt_stamp_cannot_claim_complete_history(self):
         with reader() as (root, package, cp, env, base):

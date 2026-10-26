@@ -124,9 +124,8 @@ def _decrypt_candidate(src: str, dst: str, enc_key: bytes, quiet: bool = False) 
     info = {"src": src, "dst": dst, "ok": False, "reason": "", "pages": 0}
 
     wal = src + '-wal'
-    if os.path.isfile(wal) and os.path.getsize(wal):
-        info['reason'] = '检测到非空 WAL，覆盖尚未核验；当前路线不能确认完整覆盖。'
-        return info
+    info['wal_size'] = os.path.getsize(wal) if os.path.isfile(wal) else 0
+    info['wal_observed'] = bool(info['wal_size'])
     size = os.path.getsize(src)
     if size < PAGE_SZ:
         info["reason"] = "文件太小"
@@ -149,9 +148,10 @@ def _decrypt_candidate(src: str, dst: str, enc_key: bytes, quiet: bool = False) 
             info["reason"] = f"无法取得稳定快照：{msg}"
             return info
 
-        if os.path.isfile(wal) and os.path.getsize(wal):
-            info['reason'] = '复制期间检测到非空 WAL，覆盖尚未核验。'
-            return info
+        after_wal_size = os.path.getsize(wal) if os.path.isfile(wal) else 0
+        info['wal_changed'] = info['wal_size'] != after_wal_size
+        info['wal_size'] = max(info['wal_size'], after_wal_size)
+        info['wal_observed'] = bool(info['wal_size'])
         size = os.path.getsize(snap)
         if size % PAGE_SZ:
             info['reason'] = '库页不完整'
@@ -277,8 +277,13 @@ def main():
             ok += 1
             stat = os.stat(src)
             files_meta[rel] = {'size': stat.st_size, 'mtime': int(stat.st_mtime),
-                               'verified_at': int(time.time())}
+                               'verified_at': int(time.time()),
+                               'wal_observed': info.get('wal_observed', False),
+                               'wal_size': info.get('wal_size', 0),
+                               'wal_changed': info.get('wal_changed', False)}
             print('   OK')
+            if info.get('wal_observed'):
+                print('[诊断] SOURCE_WAL_OBSERVED：检测到源 WAL，其覆盖待 Windows 核实；按原主库快照路径继续。')
         else:
             fail += 1
             failures[rel] = 'DECRYPTION_FAILED'

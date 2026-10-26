@@ -1,5 +1,5 @@
 {
-  "_说明": "这是出厂模板，不要直接改它。跑 python tools/setup.py 会生成属于这台机器的 config.json（已随版本库忽略）。paths 留空表示尚未初始化，命令会拒绝运行并提示你跑向导。",
+  "_说明": "出厂模板，不直接复制使用。首次在 WorkBuddy 对话调用 setup 确认本人账号、包外目录、时区、稳定群 ID 和生效日；配置、首报、宿主任务及真实触发分别验收。",
   "version": 1,
   "created_at": "",
   "wechat": {
@@ -17,22 +17,23 @@
   },
   "chats": [],
   "collect": {
-    "initial_days": 7,
-    "overlap_days": 1,
     "max_age_hours": 24,
-    "schedule": ["08:00", "20:00"]
+    "schedule": []
   },
   "compose": {
-    "time": "08:30",
+    "time": "",
     "target_day": "yesterday",
     "theme": "magazine",
-    "formats": ["html", "png"]
+    "formats": [
+      "html",
+      "png"
+    ],
+    "timezone": null
   },
   "retention": {
     "data_days": 30
   },
   "degrade": {
-    "allow_no_node": true,
     "allow_no_browser": true
   }
 }

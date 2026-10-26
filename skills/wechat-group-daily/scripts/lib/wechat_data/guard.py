@@ -181,6 +181,19 @@ def covers_date(decrypted_at: float, date_str: str) -> bool | None:
     return decrypted_at >= end
 
 
+
+def wal_diagnostics(db_dir):
+    """Observation only: WAL presence does not prove pending frames or block copying."""
+    files = (read_stamp(db_dir) or {}).get('files') or {}
+    observed = [meta for meta in files.values() if isinstance(meta, dict) and meta.get('wal_observed')]
+    if not observed:
+        return []
+    return [{'code': 'SOURCE_WAL_OBSERVED', 'count': len(observed),
+             'bytes': sum(meta.get('wal_size', 0) for meta in observed),
+             'changed_count': sum(bool(meta.get('wal_changed')) for meta in observed),
+             'message': '源 WAL 覆盖待 Windows 核实；按原主库快照路径继续。'}]
+
+
 def check(db_dir: str, max_age_hours: float = 24.0,
           tolerance_s: float | None = None,
           target_date: str | None = None,

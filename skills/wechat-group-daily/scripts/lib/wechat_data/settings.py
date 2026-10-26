@@ -57,44 +57,40 @@ INIT_HINT = """尚未初始化：找不到配置文件
 向导跑完会生成本机的 config.json，之后的命令才能用。"""
 
 
+class ConfigurationError(ValueError):
+    pass
+
+
+def default_data_root() -> str:
+    return os.path.join(os.path.expanduser('~'), 'wechat-daily')
+
+
+def external_path(path: str) -> str:
+    if not isinstance(path, str) or not path or not os.path.isabs(path):
+        raise ConfigurationError('CONFIG_INVALID: 运行目录必须为包外绝对路径')
+    package = os.path.realpath(os.path.dirname(ROOT))
+    real = os.path.realpath(path)
+    try:
+        if os.path.commonpath((package, real)) == package:
+            raise ConfigurationError('CONFIG_INVALID: 运行数据不能保存在 Skill 内')
+    except ValueError as error:
+        if isinstance(error, ConfigurationError):
+            raise
+    return os.path.abspath(path)
+
+
 def default_config() -> dict:
-    """默认配置：路径都在项目内，等价于改造前的行为"""
+    """A non-persistent preview; business commands still require a saved config."""
+    root = default_data_root()
     return {
-        "version": CONFIG_VERSION,
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "wechat": {
-            "data_root": "",
-            "db_dir": "",
-            "account": "",
-        },
-        "paths": {
-            "root": ROOT,
-            "decrypted": os.path.join(ROOT, "decrypted"),
-            "data": os.path.join(ROOT, "data"),
-            "reports": os.path.join(ROOT, "reports"),
-            "secrets": os.path.join(ROOT, "secrets"),
-            "logs": os.path.join(ROOT, "logs"),
-        },
-        "chats": [],
-        "collect": {
-            "initial_days": 7,
-            "overlap_days": 1,
-            "max_age_hours": 24,
-            "schedule": [],
-        },
-        "compose": {
-            "time": "",
-            "target_day": "yesterday",
-            "theme": "magazine",
-            "formats": ["html", "png"],
-        },
-        "retention": {
-            "data_days": 30,
-        },
-        "degrade": {
-            "allow_no_node": True,
-            "allow_no_browser": True,
-        },
+        'version': CONFIG_VERSION, 'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'wechat': {'data_root': '', 'db_dir': '', 'account': ''},
+        'paths': {'root': root, **{key: os.path.join(root, key) for key in
+                  ('decrypted', 'data', 'reports', 'secrets', 'logs')}},
+        'chats': [], 'collect': {'max_age_hours': 24, 'schedule': []},
+        'compose': {'time': '', 'timezone': None, 'target_day': 'yesterday',
+                    'theme': 'magazine', 'formats': ['html', 'png']},
+        'retention': {'data_days': 30}, 'degrade': {'allow_no_browser': True},
     }
 
 
@@ -119,14 +115,12 @@ def require() -> dict:
     if not exists():
         print(INIT_HINT.format(path=CONFIG_PATH, root=ROOT), file=sys.stderr, flush=True)
         raise SystemExit(EXIT_NOT_INITIALIZED)
-    cfg = load()
-    if not get(cfg, "paths.root"):
-        print("配置文件存在，但 paths 还没填（大概是直接拷了 config.example.json）。\n"
-              "请跑一次初始化向导，让它按这台机器的实际情况写好：\n\n"
-              f"    cd {ROOT}\n"
-              "    python tools/setup.py\n", file=sys.stderr, flush=True)
+    try:
+        return load()
+    except ConfigurationError:
+        print('CONFIG_INVALID: 配置无法读取或路径不安全，请在 WorkBuddy 中修复；原文件已保留。',
+              file=sys.stderr)
         raise SystemExit(EXIT_NOT_INITIALIZED)
-    return cfg
 
 
 def load() -> dict:
@@ -134,14 +128,30 @@ def load() -> dict:
     if not exists():
         return default_config()
     try:
-        with open(CONFIG_PATH, encoding="utf-8") as f:
-            cfg = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return default_config()
-    # 补齐缺失字段，兼容旧配置
-    base = default_config()
-    _merge_missing(cfg, base)
-    return cfg
+        with open(CONFIG_PATH, encoding='utf-8') as source:
+            cfg = json.load(source)
+        if not isinstance(cfg, dict) or not isinstance(cfg.get('paths'), dict):
+            raise ConfigurationError('CONFIG_INVALID')
+        external_path(CONFIG_PATH)
+        for key in ('root', 'data', 'reports'):
+            external_path(cfg['paths'].get(key))
+        for path in cfg['paths'].values():
+            external_path(path)
+        base = default_config()
+        root = cfg['paths']['root']
+        base['paths'] = {'root': root, **{key: os.path.join(root, key) for key in
+                         ('decrypted', 'data', 'reports', 'secrets', 'logs')}}
+        _merge_missing(cfg, base)
+        if any(not isinstance(cfg.get(key), dict) for key in ('wechat', 'compose', 'collect', 'degrade')):
+            raise ConfigurationError('CONFIG_INVALID')
+        if not isinstance(cfg['chats'], list) or not all(isinstance(c, dict) for c in cfg['chats']):
+            raise ConfigurationError('CONFIG_INVALID')
+        for chat in cfg['chats']:
+            if not isinstance(chat.get('username'), str) or not chat['username'] or not isinstance(chat.get('daily', True), bool):
+                raise ConfigurationError('CONFIG_INVALID')
+        return cfg
+    except (OSError, ValueError, TypeError) as error:
+        raise ConfigurationError('CONFIG_INVALID: 配置无法读取或字段无效') from error
 
 
 def _merge_missing(target: dict, source: dict) -> None:
@@ -154,8 +164,11 @@ def _merge_missing(target: dict, source: dict) -> None:
 
 def save(cfg: dict) -> str:
     """原子写入配置"""
+    external_path(CONFIG_PATH)
+    for path in cfg.get('paths', {}).values():
+        external_path(path)
     cfg["version"] = CONFIG_VERSION
-    cfg.setdefault("updated_at", time.strftime("%Y-%m-%d %H:%M:%S"))
+    cfg['updated_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
     d = os.path.dirname(CONFIG_PATH)
     os.makedirs(d, exist_ok=True)
     fd, tmp = tempfile.mkstemp(suffix=".json.tmp", dir=d)
@@ -163,6 +176,9 @@ def save(cfg: dict) -> str:
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
+        if os.path.isfile(CONFIG_PATH):
+            backup = CONFIG_PATH + '.bak-' + str(time.time_ns())
+            shutil.copy2(CONFIG_PATH, backup)
         os.replace(tmp, CONFIG_PATH)
     finally:
         if os.path.exists(tmp):
@@ -197,22 +213,22 @@ def ensure_dirs(cfg: dict) -> dict:
 
 def decrypted_dir(cfg: dict | None = None) -> str:
     cfg = cfg or load()
-    return get(cfg, "paths.decrypted") or os.path.join(ROOT, "decrypted")
+    return external_path(get(cfg, "paths.decrypted"))
 
 
 def data_dir(cfg: dict | None = None) -> str:
     cfg = cfg or load()
-    return get(cfg, "paths.data") or os.path.join(ROOT, "data")
+    return external_path(get(cfg, "paths.data"))
 
 
 def reports_dir(cfg: dict | None = None) -> str:
     cfg = cfg or load()
-    return get(cfg, "paths.reports") or os.path.join(ROOT, "reports")
+    return external_path(get(cfg, "paths.reports"))
 
 
 def secrets_dir(cfg: dict | None = None) -> str:
     cfg = cfg or load()
-    return get(cfg, "paths.secrets") or os.path.join(ROOT, "secrets")
+    return external_path(get(cfg, "paths.secrets"))
 
 
 def keys_file(cfg: dict | None = None) -> str:
@@ -224,8 +240,7 @@ def keys_file(cfg: dict | None = None) -> str:
     new = os.path.join(secrets_dir(cfg), "all_keys.json")
     if os.path.exists(new):
         return new
-    legacy = os.path.join(ROOT, "tools", "all_keys.json")
-    return new if not os.path.exists(legacy) else legacy
+    return new
 
 
 def source_db_dir(cfg: dict | None = None) -> str:
@@ -233,16 +248,6 @@ def source_db_dir(cfg: dict | None = None) -> str:
     d = get(cfg, "wechat.db_dir", "")
     if d and os.path.isdir(d):
         return d
-    # 回退：从密钥文件的 _db_dir 读
-    kf = keys_file(cfg)
-    if os.path.exists(kf):
-        try:
-            with open(kf, encoding="utf-8") as f:
-                v = json.load(f).get("_db_dir", "")
-            if v and os.path.isdir(v):
-                return v
-        except (json.JSONDecodeError, OSError):
-            pass
     return ""
 
 

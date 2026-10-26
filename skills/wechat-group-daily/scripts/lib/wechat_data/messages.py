@@ -43,6 +43,7 @@ class Message:
         return {
             "local_id": self.local_id,
             "source_shard": self.source_shard,
+            "message_id": f"{self.source_shard}:{self.local_id}" if self.source_shard else None,
             "time": self.ts_str,
             "sender": self.sender,
             "sender_id": self.sender_username,

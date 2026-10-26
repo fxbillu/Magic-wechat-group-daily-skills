@@ -45,7 +45,8 @@ def record_path(cfg, kind, date, username):
 def read_record(path):
     try:
         with open(path, encoding='utf-8') as source:
-            return json.load(source)
+            value = json.load(source)
+            return value if isinstance(value, dict) else {}
     except (ValueError, OSError):
         return {}
 

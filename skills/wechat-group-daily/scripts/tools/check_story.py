@@ -127,24 +127,48 @@ def main() -> int:
         print('[错误] 找不到唯一归档，请指定 story.username 或 --archive。')
         return 1
     msgs = arch.get("messages", [])
-    texts = {str(m.get("text", "")) for m in msgs}
     spokes = {str(m.get("sender", "")) for m in msgs}
 
     problems = []
+    if story.get('username') and story['username'] != (arch.get('chat') or {}).get('username'):
+        problems.append('稿件群 ID 与来源归档不一致')
+    source_revision = (arch.get('collection') or {}).get('revision')
+    if source_revision and story.get('source_revision') != source_revision:
+        problems.append('稿件 source_revision 与冻结素材版本不一致')
 
-    # 1. 引号必须逐字出现在归档里
+    # Match every literal quotation on one source row, including optional source identity.
+    def check_quote(quote, label):
+        if not isinstance(quote, dict) or not isinstance(quote.get('text'), str) or not quote.get('who'):
+            problems.append(f'{label} 引用必须包含 who/text 对象')
+            return
+        matches = [m for m in msgs if m.get('text') == quote['text'] and m.get('sender') == quote['who']]
+        if any(m.get('message_id') for m in matches) and not quote.get('source_id'):
+            problems.append(f'{label} 引用需要归档中的 source_id')
+            return
+        if quote.get('sender_id'):
+            matches = [m for m in matches if m.get('sender_id') == quote['sender_id']]
+        if quote.get('source_id'):
+            matches = [m for m in matches if (m.get('message_id') or
+                       (f"{m['source_shard']}:{m['local_id']}" if m.get('source_shard') and 'local_id' in m else None))
+                       == quote['source_id']]
+        if len({m.get('sender_id') for m in matches}) > 1 and not (quote.get('source_id') or quote.get('sender_id')):
+            problems.append(f'{label} 同名发言人需明确来源消息或 sender_id')
+            return
+        if not matches:
+            problems.append(f'{label} 原话与署名/来源未在同一条源消息匹配')
+
     n_quotes = 0
-    for n in story.get("timeline", []):
-        for q in n.get("quotes", []):
+    for node in story.get('timeline', []):
+        for quote in node.get('quotes', []):
             n_quotes += 1
-            if not isinstance(q, dict):
-                problems.append(f"{n.get('no')} 的 quotes 必须是 {{who, text}} 对象，现在是字符串：{str(q)[:30]}")
-                continue
-            if q.get("text") not in texts:
-                problems.append(f"{n.get('no')} 引号与原文不符：{str(q.get('text'))[:40]}")
-            if q.get("who") not in spokes:
-                problems.append(f"{n.get('no')} 引号署名「{q.get('who')}」不在当天发言人里")
-    print(f"[引号] {n_quotes} 句，逐字核对完毕")
+            check_quote(quote, str(node.get('no')))
+    footer = story.get('footer_quote')
+    if footer:
+        # Legacy attr is accepted only as an exact author label, never fuzzy parsed.
+        if isinstance(footer, dict) and not footer.get('who'):
+            footer = dict(footer, who=footer.get('attr'))
+        check_quote(footer, 'footer_quote')
+    print(f'[引号] {n_quotes} 句及收尾原句，按源消息与署名核对完毕')
 
     # 2. story 字数
     print("[字数]")

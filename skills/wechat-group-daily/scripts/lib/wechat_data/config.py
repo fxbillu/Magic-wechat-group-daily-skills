@@ -51,12 +51,8 @@ def db_dir(path=None) -> str:
     """
     p = path or os.environ.get("WECHAT_DATA_DIR")
     if not p:
-        try:
-            from . import settings
-            p = settings.decrypted_dir()
-        except Exception:
-            p = None
-    p = p or DEFAULT_DB_DIR
+        from . import settings
+        p = settings.decrypted_dir(settings.require())
     if not os.path.isdir(p):
         raise FileNotFoundError(f"数据库目录不存在: {p}")
     return p
