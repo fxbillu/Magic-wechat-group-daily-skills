@@ -1057,3 +1057,41 @@ kbd {
   .top { padding-top: var(--sp-md); gap: var(--sp-block); }
   .nav { gap: var(--sp-block); }
 }
+
+/* Contract states and read-only recovery controls. */
+::selection { background: var(--pending-edge); color: var(--ink); }
+input, select { caret-color: var(--brick); }
+.entry-status { display: inline-flex; flex-wrap: wrap; gap: var(--sp-xs) var(--sp-sm); font-size: 12px; color: var(--ink-body); }
+.entry-status > span { white-space: nowrap; }
+.identity { display: block; font: 12px/1.6 var(--mono); color: var(--ink-body); overflow-wrap: anywhere; }
+.rowline { flex-wrap: wrap; }
+.rowline .identity { flex-basis: 100%; order: 1; }
+.run-status { margin-bottom: var(--sp-section); border-bottom: 1px solid var(--rule); padding-bottom: var(--sp-sm); color: var(--ink-body); font-size: 13px; }
+.run-status summary, .workbuddy-action summary { cursor: pointer; color: var(--ink-secondary); }
+.run-status p { margin-top: var(--sp-sm); }
+.workbuddy-action { margin: var(--sp-md) 0; color: var(--ink-body); font-size: 13px; }
+.workbuddy-action .setup-request { margin: var(--sp-sm) 0; }
+.copy-notice { display: inline-block; margin-left: var(--sp-sm); }
+.searchbox { flex-wrap: wrap; }
+.search-filters { display: flex; flex-wrap: wrap; gap: var(--sp-sm); width: 100%; }
+.search-filters label { display: flex; flex-direction: column; gap: var(--sp-xs); flex: 1 1 160px; min-width: 0; font-size: 13px; color: var(--ink-body); }
+.search-filters input, .search-filters select { width: 100%; min-width: 0; background: var(--paper-raised); border: 1px solid var(--rule-strong); border-radius: var(--r-md); color: var(--ink); font: inherit; padding: 8px 10px; }
+.filter-error { width: 100%; color: var(--orphan); }
+.dhead .st { white-space: normal; }
+.item .entry-status { white-space: normal; }
+.mx td.c a { min-width: 80px; font-family: var(--font); }
+@media (max-width: 620px) {
+  .entry-status { display: flex; }
+  .item:has(.entry-status) { flex-wrap: wrap; }
+  .item:has(.entry-status) .t { white-space: normal; flex-basis: 65%; }
+  .item:has(.entry-status) .n:last-child { width: 100%; text-align: left; }
+  .search-filters input, .search-filters select { font-size: 16px; }
+}
+
+/* Native dialog supplies keyboard containment and returns focus on close. */
+dialog.help-scrim { display: none; border: 0; padding: 0; margin: auto; width: min(420px, calc(100% - 40px)); max-height: calc(100% - 40px); color: var(--ink); background: transparent; }
+dialog.help-scrim[open] { display: block; position: fixed; inset: 0; }
+dialog.help-scrim::backdrop { background: color-mix(in srgb, var(--ink) 28%, transparent); }
+dialog.help-scrim .help-panel { width: 100%; }
+.mmeta { flex-wrap: wrap; }
+.identity, .setup-request { overflow-wrap: anywhere; }

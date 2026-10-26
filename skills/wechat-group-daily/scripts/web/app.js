@@ -3,8 +3,7 @@
  * 无构建链。Vue 3 从本地 vendor 加载，模板是字符串。
  * 数据只从 /api/browse · /api/search · /api/messages 拿，不直连 SQLite。
  *
- * 五态是全产品的判断机制，因此只在 STATE_META 里定义一次，
- * 所有表面（徽章 / 卡片标题 / 圆点 / 矩阵 / 明细页）都从这里取词。
+ * 采集和日报状态分别显示；所有表面共享读取契约和状态文案。
  */
 (function () {
   "use strict";
@@ -13,81 +12,85 @@
 
   // ────────────────────────────────────────────── 常量
 
-  /** 五态。改这里就等于改全站文案。 */
+  // collection/report remain independent facts; state below is only a display summary.
   const STATE_META = {
-    ready: {
-      label: "已出日报",
-      cls: "ready",
-      title: "",                      // 有标题时用真标题，这里留空
-      note: "日报已生成",
-    },
-    pending: {
-      label: "未生成",
-      cls: "pending",
-      title: "有内容，日报还没生成",
-      note: "素材够了，等出稿",
-    },
-    orphan: {
-      label: "数据缺失",
-      cls: "orphan",
-      title: "日报在，原始归档不在了",
-      note: "产物可能是死的",
-    },
-    empty: {
-      label: "素材不足",
-      cls: "empty",
-      title: "素材不足，未成篇",
-      note: "这天本来就没东西，不是欠账",
-    },
-    missing: {
-      label: "无对话",
-      cls: "missing",
-      title: "这一天没有归档",
-      note: "监控中，采集没拿到",
-    },
+    ready: { label: "可读", cls: "ready", title: "日报可读", note: "日报产物可打开。" },
+    stale: { label: "旧稿待更新", cls: "pending", title: "旧稿可读，等待更新", note: "素材已变化，下面保留上次日报。请在 WorkBuddy 中核对后更新。" },
+    pending: { label: "待产稿", cls: "pending", title: "已采集，等待产稿", note: "已有素材，尚未生成日报；素材是否足够以产稿结果为准。" },
+    insufficient: { label: "素材不足", cls: "empty", title: "素材不足，未成篇", note: "本次素材不足以成篇。可在 WorkBuddy 中核对来源或选择其他日期。" },
+    orphan: { label: "素材归档缺失", cls: "orphan", title: "日报保留，素材归档缺失", note: "可查看已有日报；原始素材暂时无法核对，请在 WorkBuddy 中恢复归档。" },
+    empty: { label: "成功零消息", cls: "empty", title: "采集完成，该日零消息", note: "已成功完成目标范围的采集，结果为零消息。" },
+    not_collected: { label: "未采集", cls: "missing", title: "这一天尚未采集", note: "尚无采集结果，不能据此判断群内是否有消息。" },
+    collection_running: { label: "采集中", cls: "pending", title: "正在采集素材", note: "采集尚在进行，结果未确认。" },
+    report_running: { label: "产稿中", cls: "pending", title: "日报正在生成", note: "产稿尚在进行，已有稿件可继续阅读。" },
+    collection_failed: { label: "采集失败", cls: "orphan", title: "本次采集失败", note: "本次采集未成功完成。请将群与日期交给 WorkBuddy，核对覆盖缺口后重试。" },
+    report_failed: { label: "产稿失败", cls: "orphan", title: "本次产稿失败", note: "请在 WorkBuddy 中核对产稿步骤后重试；已有稿件仍保留。" },
   };
-
-  const FALLBACK_STATE = {
-    label: "状态未知",
-    cls: "missing",
-    title: "状态未知",
-    note: "数据层返回了未定义的状态，这是一个 bug",
+  const FALLBACK_STATE = { label: "未核验", cls: "missing", title: "状态未核验", note: "服务未提供可核验的状态，请重新检查或在 WorkBuddy 中核对。" };
+  const COLLECTION_META = {
+    not_collected: "not_collected", running: "collection_running", collected: "collected",
+    empty: "empty", failed: "collection_failed",
   };
+  const REPORT_META = {
+    pending: "pending", running: "report_running", ready: "ready", stale: "stale",
+    insufficient: "insufficient", failed: "report_failed", orphan: "orphan",
+  };
+  STATE_META.collected = { label: "采集成功", cls: "ready", title: "采集成功", note: "" };
 
-  const NAV = [
-    { href: "/", label: "最近", key: "recent" },
-    { href: "/dates", label: "按日期", key: "dates" },
-    { href: "/chats", label: "按群", key: "chats" },
-    { href: "/matrix", label: "矩阵", key: "matrix" },
-    { href: "/search", label: "搜索", key: "search" },
-  ];
+  function artifactURL(value) {
+    if (typeof value !== "string" || !value.startsWith("/r/")) return null;
+    try {
+      const url = new URL(value, location.origin);
+      if (url.origin !== location.origin || !url.pathname.startsWith("/r/") || url.search || url.hash) return null;
+      if (value.includes("\\") || /(?:^|\/)\.{1,2}(?:\/|$)/.test(decodeURIComponent(value))) return null;
+      return url.pathname;
+    } catch (_) { return null; }
+  }
 
-  const DAY_TABS = [3, 7, 14, 30];
+  function prepareEntry(entry) {
+    const c = entry.collection || {};
+    const r = entry.report || {};
+    const html = artifactURL(r.html_url), png = artifactURL(r.png_url);
+    let collectionState = Object.hasOwn(COLLECTION_META, c.state) ? COLLECTION_META[c.state] : "unknown";
+    if (["collected", "empty"].includes(collectionState) && c.coverage?.complete !== true) collectionState = "unknown";
+    let reportState = Object.hasOwn(REPORT_META, r.state) ? REPORT_META[r.state] : "unknown";
+    if (["ready", "stale", "orphan"].includes(reportState) && !html && !png) reportState = "unknown";
+    let state = reportState;
+    if (["not_collected", "collection_running", "collection_failed", "empty", "unknown"].includes(collectionState)
+        && !["ready", "stale", "orphan", "report_failed", "report_running"].includes(reportState)) state = collectionState;
+    return { ...entry, state, collectionState, reportState, html_url: html, png_url: png,
+      total: Number.isInteger(c.message_count) && c.message_count >= 0 ? c.message_count : null,
+      composed_at: r.composed_at || null };
+  }
 
-  /** 出报通常在这个时刻之后。首屏用它区分「还没到点」与「真没出」。 */
-  const REPORT_HOUR = 10;
-  const REPORT_MIN = 30;
+  function summarize(entries) {
+    const counts = {};
+    entries.forEach(e => { counts[e.state] = (counts[e.state] || 0) + 1; });
+    return { counts, expected: entries.length,
+      archived: entries.filter(e => ["collected", "empty"].includes(e.collectionState)).length,
+      readable: entries.filter(e => e.html_url || e.png_url).length };
+  }
+
+  // The HTTP boundary adapts contract fields once, shared by every reading view.
+  function prepareResponse(path, body) {
+    const entries = rows => (rows || []).map(prepareEntry);
+    if (path === "/api/entry") return prepareEntry(body);
+    if (path === "/api/day") return { ...body, chats: entries(body.chats) };
+    if (path === "/api/chat") return { ...body, entries: entries(body.entries) };
+    if (path !== "/api/browse") return body;
+    return { ...body,
+      recent: (body.recent || []).map(g => ({ ...g, entries: entries(g.entries) })),
+      today: body.today ? { ...body.today, chats: entries(body.today.chats) } : null,
+      matrix: body.matrix ? { ...body.matrix, rows: (body.matrix.rows || []).map(r => ({ ...r, cells: entries(r.cells) })) } : null,
+    };
+  }
 
   // ────────────────────────────────────────────── 工具
-
-  const pad2 = (n) => String(n).padStart(2, "0");
-
-  function todayISO() {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  }
 
   function parseISO(s) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
     if (!m) return null;
     return new Date(+m[1], +m[2] - 1, +m[3]);
-  }
-
-  function shiftDays(s, n) {
-    const d = parseISO(s);
-    if (!d) return s;
-    d.setDate(d.getDate() + n);
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
   function dayDiff(later, earlier) {
@@ -126,12 +129,7 @@
   }
 
   function num(n) {
-    return (Number(n) || 0).toLocaleString("zh-CN");
-  }
-
-  function pct(part, whole) {
-    if (!whole) return 0;
-    return Math.round((part / whole) * 100);
+    return n == null ? "—" : Number(n).toLocaleString("zh-CN");
   }
 
   function escapeHtml(s) {
@@ -156,11 +154,7 @@
   }
 
   function meta(state) {
-    return STATE_META[state] || FALLBACK_STATE;
-  }
-
-  function reportURL(rel) {
-    return "/r/" + rel.split("/").map(encodeURIComponent).join("/");
+    return Object.hasOwn(STATE_META, state) ? STATE_META[state] : FALLBACK_STATE;
   }
 
   function chatURL(username) {
@@ -169,12 +163,6 @@
 
   function detailURL(username, date) {
     return "/c/" + encodeURIComponent(username) + "/" + date;
-  }
-
-  /** 判断「今天」是否还没到出报时刻 */
-  function beforeReportHour() {
-    const d = new Date();
-    return d.getHours() * 60 + d.getMinutes() < REPORT_HOUR * 60 + REPORT_MIN;
   }
 
   async function getJSON(url) {
@@ -187,24 +175,35 @@
         signal: controller.signal,
       });
     } catch (e) {
+      clearTimeout(timer);
       if (e && e.name === "AbortError") {
         throw new Error("本机服务响应超时，请确认采集或索引没有卡住");
       }
       throw new Error("连不上本机服务，请在 WorkBuddy 中重新启动群日报阅读服务，再重新检查");
-    } finally {
-      clearTimeout(timer);
     }
 
     let body = null;
     try {
       body = await r.json();
     } catch (e) {
-      throw new Error(`响应不是 JSON（HTTP ${r.status}）`);
+      throw new Error(e?.name === "AbortError" ? "本机服务响应超时，请重新检查。" : `响应不是 JSON（HTTP ${r.status}）`);
+    } finally {
+      clearTimeout(timer);
     }
     if (!r.ok) {
       throw new Error((body && body.error) || `HTTP ${r.status}`);
     }
-    return body;
+    return prepareResponse(new URL(url, location.origin).pathname, body);
+  }
+
+  async function copyText(text) {
+    let timer;
+    try {
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("clipboard unconfirmed")), 1500); }),
+      ]);
+    } finally { clearTimeout(timer); }
   }
 
   // ────────────────────────────────────────────── 路由
@@ -219,7 +218,10 @@
     if (p === "/chats") return { name: "chats", key: "chats" };
     if (p === "/matrix") return { name: "matrix", key: "matrix" };
     if (p === "/search")
-      return { name: "search", key: "search", q: u.searchParams.get("q") || "" };
+      return { name: "search", key: "search", filters: {
+        q: u.searchParams.get("q") || "", chat: u.searchParams.get("chat") || "",
+        from: u.searchParams.get("from") || "", to: u.searchParams.get("to") || "",
+      } };
 
     if (seg[0] === "d" && seg[1]) return { name: "day", key: "dates", date: seg[1] };
 
@@ -249,6 +251,27 @@
     template: `<span class="badge" :class="'s-' + m.cls">{{ m.label }}</span>`,
   };
 
+  const EntryStatus = {
+    props: ["entry"], components: { Badge },
+    template: `<span class="entry-status"><span>采集 <Badge :state="entry.collectionState || 'unknown'" /></span><span>日报 <Badge :state="entry.reportState || 'unknown'" /></span></span>`,
+  };
+
+  const WorkBuddyAction = {
+    props: ["username", "date"],
+    setup(props) {
+      const state = reactive({ notice: "" });
+      const request = computed(() => props.username
+        ? "请使用微信群日报 Skill，核对群 ID " + JSON.stringify(props.username) + " 在 " + (props.date || "所选日期") + " 的采集和日报状态，保留已有日报；如需补跑，请先列出缺口并让我确认范围。"
+        : "请使用微信群日报 Skill，核对本机关注群、首份日报与定时任务状态，列出缺口和下一步；如需补跑，请先让我确认群与日期范围。");
+      async function copy() {
+        try { await copyText(request.value); state.notice = "已复制，请粘贴到 WorkBuddy。"; }
+        catch (_) { state.notice = "复制未成功，请手动复制上方指令。"; }
+      }
+      return { state, request, copy };
+    },
+    template: `<details class="workbuddy-action"><summary>在 WorkBuddy 中处理</summary><p class="setup-request">{{ request }}</p><button type="button" class="btn quiet" @click="copy">复制处理指令</button><span class="copy-notice" role="status">{{ state.notice }}</span></details>`,
+  };
+
   const Dot = {
     // state 允许为空：日期轴上有「不知道」的情况（聚合行缺失），
     // 那时候宁可不画点，也不要画一个假的「无归档」。
@@ -276,36 +299,15 @@
   const RecentView = {
     props: ["data", "days"],
     emits: ["nav-rows"],
-    components: { Badge, Dot, EmptyBox },
+    components: { Badge, EntryStatus, Dot, EmptyBox, WorkBuddyAction },
     setup(props, { emit }) {
       const groups = computed(() => {
         const d = props.data;
         if (!d || !d.recent) return [];
         const limit = props.days;
         const slice = d.recent.slice(0, limit);
-        const followed = (d.chats || []).filter((c) => c.followed);
-
-        return slice.map((g) => {
-          const entries = g.entries || [];
-          const have = new Set(entries.map((e) => e.username));
-          const holes = followed.filter((c) => !have.has(c.username));
-
-          const byState = { ready: 0, pending: 0, orphan: 0, empty: 0, missing: 0 };
-          entries.forEach((e) => {
-            byState[e.state] = (byState[e.state] || 0) + 1;
-          });
-          byState.missing += holes.length;
-
-          const expected = entries.length + holes.length;
-          return {
-            date: g.date,
-            entries,
-            holes,
-            byState,
-            expected,
-            total: g.total,
-          };
-        });
+        return slice.map(g => ({ ...g, byState: summarize(g.entries || []).counts,
+          expected: (g.entries || []).length }));
       });
 
       // 键盘导航：每个群卡片一个落点，外加日期组头
@@ -331,49 +333,10 @@
       const todayLine = computed(() => {
         const t = today.value;
         if (!t) return null;
-        const date = t.date;
-        const isToday = date === todayISO();
-        const ready = t.reports || 0;
-        const pend = t.pending || 0;
-        const chats = t.chats || [];
-        const empty = chats.filter((c) => c.state === "empty").length;
-        const miss = t.missing || 0;
-
-        // 口径必须分开算：`today.chats` 里已经含着 missing 的群
-        // （by_day 用 include_configured 补进来的），再拿 t.missing 往上加
-        // 就是把没归档的群数了两遍，出现「3 个群中 2 个有归档」而实际只有 1 个。
-        // 分母 = 关注名单 ∪ 当天有归档的群；分子 = 真正有归档的群。
-        const archived = chats.filter((c) => c.state !== "missing").length;
-        const followedU = ((props.data && props.data.chats) || [])
-          .filter((c) => c.followed)
-          .map((c) => c.username);
-        const expected = new Set(
-          chats.map((c) => c.username).concat(followedU)
-        ).size;
-
-        let head;
-        if (ready > 0) {
-          head = `已出 ${ready} 份日报`;
-        } else if (isToday && beforeReportHour()) {
-          head = "今天的日报还没到点";
-        } else {
-          head = "今天一份日报都还没出";
-        }
-
-        const bits = [];
-        bits.push(`${expected} 个群中 ${archived} 个有归档`);
-        if (pend) bits.push(`未生成 ${pend}`);
-        if (empty) bits.push(`素材不足 ${empty}`);
-        if (miss) bits.push(`无归档 ${miss}`);
-
-        let note = "";
-        if (ready === 0 && isToday && beforeReportHour()) {
-          note = `出报通常在 ${REPORT_HOUR}:${pad2(REPORT_MIN)} 之后`;
-        } else if (!isToday) {
-          note = `${agoText(date)}（最近一次归档）`;
-        }
-
-        return { date, isToday, head, bits, note, ready, expected, miss, archived };
+        const summary = summarize(t.chats || []);
+        return { date: t.date, head: `可读 ${summary.readable} 份日报`, ready: summary.readable,
+          bits: [`${summary.expected} 个群中 ${summary.archived} 个采集成功`],
+          note: "采集与日报状态分别显示；定时运行以宿主回读为准。" };
       });
 
       const dateTitle = (ds) => {
@@ -381,7 +344,7 @@
         return a && a !== ds ? a : ds;
       };
 
-      return { groups, todayLine, dateTitle, md, num, weekday, reportURL, detailURL, scrollX: 0 };
+      return { groups, todayLine, dateTitle, md, num, weekday, detailURL, meta };
     },
     template: `
       <div>
@@ -405,11 +368,11 @@
           </div>
         </div>
 
-        <!-- 今天的状态条：替掉「今天 0 份日报」那种把「还没到点」渲染成「失败」的做法 -->
+        <!-- 日期及状态来自服务，不按浏览器时间推断运行是否成功。 -->
         <div class="todaybar" v-if="todayLine">
           <span class="tb-date">{{ todayLine.date }} {{ weekday(todayLine.date) }}</span>
           <span class="tb-main">
-            <b v-if="todayLine.ready">{{ todayLine.ready }}</b>{{ todayLine.head }}
+            {{ todayLine.head }}
           </span>
           <span class="tb-note">{{ todayLine.bits.join(' · ') }}</span>
           <span class="tb-drop"></span>
@@ -418,7 +381,7 @@
 
         <EmptyBox v-if="!groups.length"
           title="还没有任何归档"
-          body="先跑 python fetch.py archive --config --days 7 采集一轮。" />
+          body="请在 WorkBuddy 中调用微信群日报，选择需要采集的群与日期。" />
 
         <section class="daygroup" v-for="g in groups" :key="g.date">
           <div class="dhead">
@@ -427,47 +390,37 @@
               <span class="wd">{{ weekday(g.date) }} · {{ dateTitle(g.date) }}</span>
             </a>
             <span class="st">
-              已出 {{ g.byState.ready }} / {{ g.expected }}
+              可读 {{ (g.entries || []).filter(e => e.html_url || e.png_url).length }} / {{ g.expected }}
               <template v-if="g.byState.pending"> · 未生成 {{ g.byState.pending }}</template>
-              <template v-if="g.byState.empty"> · 素材不足 {{ g.byState.empty }}</template>
+              <template v-if="g.byState.insufficient"> · 素材不足 {{ g.byState.insufficient }}</template>
               <template v-if="g.byState.orphan"> · 数据缺失 {{ g.byState.orphan }}</template>
-              <template v-if="g.byState.missing"> · 无归档 {{ g.byState.missing }}</template>
+              <template v-if="g.byState.not_collected"> · 未采集 {{ g.byState.not_collected }}</template>
               · {{ num(g.total) }} 条
             </span>
           </div>
 
           <div class="grid2">
             <article class="mini" v-for="e in g.entries" :key="e.username"
-                     :class="{ 'no-thumb': !e.report_png }">
+                     :class="{ 'no-thumb': !e.png_url }">
               <a class="card-link" :href="'/c/' + encodeURIComponent(e.username) + '/' + g.date"
-                 :aria-label="e.chat + ' ' + g.date + ' ' + e.state"></a>
-              <div class="mthumb" v-if="e.report_png">
-                <img :src="reportURL(e.report_png)" alt="" loading="lazy" />
+                 :aria-label="e.chat + ' ' + e.username + ' ' + g.date + ' ' + meta(e.state).label"></a>
+              <div class="mthumb" v-if="e.png_url">
+                <img :src="e.png_url" alt="" loading="lazy" />
               </div>
               <div class="mbody">
-                <a class="mname" :href="'/c/' + encodeURIComponent(e.username)">{{ e.chat }}</a>
+                <a class="mname" :href="'/c/' + encodeURIComponent(e.username)">{{ e.chat }}</a><span class="identity">{{ e.username }}</span>
                 <div class="mttl" :class="{ quiet: !e.title }">
-                  {{ e.title || (e.state === 'ready' ? '（标题缺失）' : '')
-                     || (e.state === 'pending' ? '有内容，日报还没生成' : '')
-                     || (e.state === 'empty' ? '素材不足，未成篇' : '')
-                     || (e.state === 'orphan' ? '日报在，原始归档不在了' : '')
-                     || (e.state === 'missing' ? '这一天没有归档' : '') }}
+                  {{ e.title || meta(e.state).title }}
                 </div>
                 <div class="mmeta">
                   <span>{{ num(e.total) }} 条</span>
                   <template v-if="e.composed_at">· <span>{{ e.composed_at.slice(5, 16) }}</span></template>
-                  <Badge :state="e.state" />
+                  <EntryStatus :entry="e" />
                 </div>
               </div>
             </article>
           </div>
 
-          <p class="note" v-if="g.holes.length">
-            另有 {{ g.holes.length }} 个关注中的群当天没有归档：
-            <template v-for="(h, i) in g.holes" :key="h.username">
-              <a :href="'/c/' + encodeURIComponent(h.username)">{{ h.chat }}</a><template v-if="i < g.holes.length - 1">、</template>
-            </template>
-          </p>
         </section>
       </div>`,
   };
@@ -479,7 +432,7 @@
     emits: ["nav-rows"],
     components: { Dot, EmptyBox },
     setup(props, { emit }) {
-      /** 在日期差 > 1 处插入断更条——失败必须是可见的 */
+      /** 展示服务返回的日期间隔，不推断采集失败或关注生效范围。 */
       const rows = computed(() => {
         const d = props.data;
         if (!d) return [];
@@ -502,22 +455,21 @@
           const date = days[i];
           const a = agg[date];
           const entries = index[date] ? index[date].entries || [] : [];
-          const ready = a ? a.ready : 0;
-          const pend = a ? a.pending : 0;
-          const empty = a ? a.empty : 0;
+          const summary = index[date] ? summarize(entries) : null;
+          const ready = summary ? summary.readable : null;
+          const pend = summary ? summary.counts.pending : null;
+          const empty = summary ? summary.counts.insufficient : null;
 
           out.push({
             type: "day",
             date,
-            chats: a ? a.chats : entries.length,
+            chats: summary ? summary.archived : null,
             total: a ? a.total : 0,
             ready,
             pend,
             empty,
             // 没有聚合行时不要断言「无归档」，宁可留空——说错了比不说明更糟
-            state: a
-              ? ready ? "ready" : pend ? "pending" : empty ? "empty" : "missing"
-              : null,
+            state: null,
           });
 
           const next = days[i + 1];
@@ -559,13 +511,13 @@
             <div class="sub" v-if="data">
               <b>{{ (data.days || []).length }}</b> 天有归档
               · 覆盖 {{ data.overview.first_date }} → {{ data.overview.last_date }}
-              · 虚线处是断更
+              · 虚线处表示没有日期记录
             </div>
           </div>
           <div class="tabs"><a href="/matrix">看矩阵 ›</a></div>
         </div>
 
-        <EmptyBox v-if="!rows.length" title="还没有归档" body="先跑一轮 archive。" />
+        <EmptyBox v-if="!rows.length" title="还没有归档" body="请在 WorkBuddy 中核对关注群与需要采集的日期。" />
 
         <div class="list" v-else>
           <template v-for="(r, i) in rows" :key="i">
@@ -573,17 +525,17 @@
               <span class="d"><Dot :state="r.state" />{{ md(r.date) }}</span>
               <span class="t">
                 {{ weekday(r.date) }}
-                <span class="note"> · {{ r.chats }} 个群有归档 · {{ num(r.total) }} 条</span>
+                <span class="note"> · {{ num(r.chats) }} 个群采集成功 · {{ num(r.total) }} 条</span>
               </span>
               <span class="n">
-                已出 {{ r.ready }}
+                可读 {{ num(r.ready) }}
                 <template v-if="r.pend"> · 待 {{ r.pend }}</template>
-                <template v-if="r.empty"> · 空 {{ r.empty }}</template>
+                <template v-if="r.empty"> · 素材不足 {{ r.empty }}</template>
               </span>
             </a>
             <div v-else class="gapbar">
               <span class="gap-line"></span>
-              <span>{{ r.from }} → {{ r.to }} 之间断了 {{ r.missed }} 天</span>
+              <span>{{ r.from }} → {{ r.to }} 之间有 {{ r.missed }} 天未返回记录</span>
               <span class="gap-line"></span>
             </div>
           </template>
@@ -596,7 +548,7 @@
   const DayView = {
     props: ["data", "date"],
     emits: ["nav-rows"],
-    components: { Badge, EmptyBox },
+    components: { Badge, EntryStatus, EmptyBox, WorkBuddyAction },
     setup(props, { emit }) {
       const remote = reactive({ loading: false, error: null, data: null });
       let requestId = 0;
@@ -606,6 +558,7 @@
         const my = ++requestId;
         remote.loading = true;
         remote.error = null;
+        remote.data = null;
         try {
           const d = await getJSON("/api/day?date=" + encodeURIComponent(date));
           if (my === requestId) remote.data = d;
@@ -617,7 +570,7 @@
       }
 
       const day = computed(() => {
-        // 先用 browse 缓存立即出屏，再用独立接口补齐窗口外的日期与 missing 群。
+        // 缓存只匹配当前日期；独立接口失败始终显示错误。
         const d = props.data;
         const cached = d && (d.recent || []).find((x) => x.date === props.date);
         const g = remote.data || cached;
@@ -627,12 +580,7 @@
         // 早期写成 `g.chats || g.entries`，走缓存分支时拿到数字 2，
         // 接着 2.map(...) 抛错、整页白屏。只认数组，不是数组就退回 entries。
         const entries = Array.isArray(g.chats) ? g.chats : g.entries || [];
-        if (remote.data) return { ...g, entries, holes: [] };
-
-        const followed = ((d && d.chats) || []).filter((c) => c.followed);
-        const have = new Set(entries.map((e) => e.username));
-        const holes = followed.filter((c) => !have.has(c.username));
-        return { ...g, entries, holes };
+        return { ...g, entries };
       });
 
       const nav = computed(() => {
@@ -647,12 +595,7 @@
       const stats = computed(() => {
         const g = day.value;
         if (!g) return null;
-        const ents = g.entries || [];
-        const c = { ready: 0, pending: 0, orphan: 0, empty: 0, missing: g.holes.length };
-        ents.forEach((e) => {
-          c[e.state] = (c[e.state] || 0) + 1;
-        });
-        return { counts: c, expected: ents.length + g.holes.length, total: g.total };
+        return { ...summarize(g.entries || []), total: g.total };
       });
 
       watch(
@@ -672,12 +615,12 @@
       );
       watch(() => props.date, loadDay, { immediate: true });
 
-      return { day, nav, stats, remote, loadDay, meta, num, weekday, reportURL, detailURL, chatURL, md };
+      return { day, nav, stats, remote, loadDay, meta, num, weekday, detailURL, chatURL, md };
     },
     template: `
       <div>
         <div class="banner" v-if="remote.loading && !day" aria-live="polite">正在读取这一天…</div>
-        <div class="banner err" v-else-if="remote.error && !day" role="alert">
+        <div class="banner err" v-if="remote.error" role="alert">
           这一天取不到：{{ remote.error }}
           <button type="button" class="btn" @click="loadDay">重试</button>
         </div>
@@ -691,13 +634,13 @@
               <h1>{{ date }}</h1>
               <div class="sub" v-if="stats">
                 {{ weekday(date) }}
-                · {{ (day.entries || []).length }} 个群有归档
+                · {{ stats.archived }} 个群采集成功
                 · <b>{{ num(stats.total) }}</b> 条
-                · 已出 <b>{{ stats.counts.ready }}</b> / {{ stats.expected }}
+                · 可读 <b>{{ stats.readable }}</b> / {{ stats.expected }}
                 <template v-if="stats.counts.pending"> · 未生成 {{ stats.counts.pending }}</template>
-                <template v-if="stats.counts.empty"> · 素材不足 {{ stats.counts.empty }}</template>
+                <template v-if="stats.counts.insufficient"> · 素材不足 {{ stats.counts.insufficient }}</template>
                 <template v-if="stats.counts.orphan"> · 数据缺失 {{ stats.counts.orphan }}</template>
-                <template v-if="stats.counts.missing"> · 无归档 {{ stats.counts.missing }}</template>
+                <template v-if="stats.counts.not_collected"> · 未采集 {{ stats.counts.not_collected }}</template>
               </div>
             </div>
             <div class="pager">
@@ -707,41 +650,30 @@
           </div>
 
           <article class="card" v-for="c in day.entries" :key="c.username"
-                   :class="{ 'no-thumb': !c.report_png }">
+                   :class="{ 'no-thumb': !c.png_url }">
             <a class="card-link" :href="detailURL(c.username, date)"
-               :aria-label="c.chat + ' ' + date"></a>
-            <div class="thumb" v-if="c.report_png">
-              <img :src="reportURL(c.report_png)" alt="" loading="lazy" />
+               :aria-label="c.chat + ' ' + c.username + ' ' + date"></a>
+            <div class="thumb" v-if="c.png_url">
+              <img :src="c.png_url" alt="" loading="lazy" />
             </div>
             <div class="body">
               <div class="rowline">
-                <a class="name" :href="chatURL(c.username)">{{ c.chat }}</a>
-                <Badge :state="c.state" />
+                <a class="name" :href="chatURL(c.username)">{{ c.chat }}</a><span class="identity">{{ c.username }}</span>
+                <EntryStatus :entry="c" />
               </div>
               <div class="ttl" :class="{ nil: !c.title }">
-                {{ c.title || (c.state === 'ready' ? '（日报标题缺失）' : '')
-                   || (c.state === 'pending' ? '有内容，日报还没生成' : '')
-                   || (c.state === 'empty' ? '素材不足，未成篇' : '')
-                   || (c.state === 'orphan' ? '日报在，但原始归档不在了' : '')
-                   || (c.state === 'missing' ? '这一天没有归档' : '') }}
+                {{ c.title || meta(c.state).title }}
               </div>
               <div class="lead" v-if="c.lead">{{ c.lead }}</div>
               <div class="ft">
                 <span>{{ num(c.total) }} 条 · {{ num(c.unique_senders) }} 人 · {{ num(c.chars) }} 字</span>
                 <a :href="chatURL(c.username)">历史 ›</a>
-                <a v-if="c.report_png" :href="reportURL(c.report_png)" target="_blank" rel="noopener">长图</a>
-                <a v-if="c.report_html" :href="reportURL(c.report_html)" target="_blank" rel="noopener">日报</a>
+                <a v-if="c.png_url" :href="c.png_url" target="_blank" rel="noopener">长图</a>
+                <a v-if="c.html_url" :href="c.html_url" target="_blank" rel="noopener">日报</a>
               </div>
             </div>
           </article>
 
-          <p class="note" v-if="day.holes.length">
-            监控中但没有归档的群：
-            <template v-for="(h, i) in day.holes" :key="h.username">
-              <a :href="chatURL(h.username)">{{ h.chat }}</a><template v-if="i < day.holes.length - 1">、</template>
-            </template>
-            —— 这些是「采集没拿到」，不是「没有对话」。
-          </p>
         </template>
       </div>`,
   };
@@ -763,11 +695,8 @@
         };
       });
 
-      // 状态由后端给（`last_state`）。以前这里用
-      // `reports>0 ? ready : total>0 ? pending : missing` 自己推，
-      // 结果 `empty`（素材不足）被推成 `pending`（欠一份），
-      // 群列表上就永远挂着一笔假账。
-      const stateOf = (r) => r.last_state || "";
+      // 群级旧 last_state 不足以证明采集或日报成功。
+      const stateOf = (r) => r.collection || r.report ? prepareEntry(r).state : "unknown";
 
       watch(
         groups,
@@ -793,7 +722,7 @@
             <div class="sub" v-if="data">
               关注 <b>{{ groups.followed.length }}</b> 个
               · 另有 <b>{{ groups.others.length }}</b> 个有归档但未关注
-              · 关注名单改 config.json 的 chats
+              · 在 WorkBuddy 对话中调整关注群
             </div>
           </div>
           <div class="tabs"><a href="/matrix">看矩阵 ›</a></div>
@@ -801,21 +730,21 @@
 
         <EmptyBox v-if="!data || !(groups.followed.length || groups.others.length)"
           title="还没有归档，关注名单也是空的"
-          body="先跑 python tools/setup.py 选群，再采集。" />
+          body="请在 WorkBuddy 对话中选择关注群并生成首份日报。" />
 
         <template v-else>
           <div class="sec">关注 的 群</div>
           <div class="list" v-if="groups.followed.length">
             <a class="item" v-for="r in groups.followed" :key="r.username" :href="'/c/' + encodeURIComponent(r.username)">
               <span class="d"><Dot :state="stateOf(r)" />{{ r.last_date ? md(r.last_date) : '—' }}</span>
-              <span class="t">{{ r.chat }}
+              <span class="t">{{ r.chat }}<span class="identity">{{ r.username }}</span>
                 <span class="note"> · {{ r.days }} 天 · {{ num(r.total) }} 条<template v-if="r.last_report"> · 最近日报 {{ md(r.last_report) }}</template><template v-else-if="r.days"> · 还没出过日报</template></span>
               </span>
               <span class="n">{{ r.reports }} 份</span>
             </a>
           </div>
           <EmptyBox v-else title="还没有关注的群"
-            body="重跑 python tools/setup.py，或在 config.json 的 chats 里填。" />
+            body="请在 WorkBuddy 对话中选择关注群。" />
 
           <template v-if="groups.others.length">
             <div class="sec">其他 有归档 的 群</div>
@@ -838,7 +767,7 @@
   const ChatView = {
     props: ["data", "username"],
     emits: ["nav-rows"],
-    components: { Badge, EmptyBox },
+    components: { Badge, EntryStatus, EmptyBox, WorkBuddyAction },
     setup(props, { emit }) {
       const remote = reactive({ loading: false, error: null, data: null });
       let requestId = 0;
@@ -891,9 +820,9 @@
           ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)
           : 0;
         return {
-          days: rs.length,
+          days: rs.filter(r => ["collected", "empty"].includes(r.collectionState)).length,
           avg,
-          ready: rs.filter((r) => r.state === "ready").length,
+          ready: rs.filter((r) => r.html_url || r.png_url).length,
           first: rs[rs.length - 1].date,
           last: rs[0].date,
         };
@@ -916,7 +845,7 @@
     template: `
       <div>
         <div class="banner" v-if="remote.loading && !chat" aria-live="polite">正在读取群时间线…</div>
-        <div class="banner err" v-else-if="remote.error && !chat" role="alert">
+        <div class="banner err" v-if="remote.error" role="alert">
           群时间线取不到：{{ remote.error }}
           <button type="button" class="btn" @click="loadChat">重试</button>
         </div>
@@ -940,7 +869,7 @@
 
           <div class="crumb">
             <span class="sid">{{ username }}</span>
-            —— 群改名不会影响这条时间线，username 才是稳定主键
+            —— 群改名后仍按此群 ID 回看
           </div>
 
           <div class="list">
@@ -948,7 +877,7 @@
               <span class="d">{{ md(r.date) }}</span>
               <span class="t">{{ weekday(r.date) }}<span class="note" v-if="r.title"> · {{ r.title }}</span><span class="note" v-else> · {{ meta(r.state).title }}</span></span>
               <span class="n">{{ num(r.total) }}</span>
-              <span class="n"><Badge :state="r.state" /></span>
+              <span class="n"><EntryStatus :entry="r" /></span>
             </a>
           </div>
         </template>
@@ -960,7 +889,7 @@
   const DetailView = {
     props: ["data", "username", "date"],
     emits: ["nav-rows"],
-    components: { Badge, EmptyBox },
+    components: { Badge, EntryStatus, EmptyBox, WorkBuddyAction },
     setup(props, { emit }) {
       const remote = reactive({ loading: false, error: null, data: null });
       let entryReq = 0;
@@ -1005,7 +934,7 @@
 
       async function loadMessages(force) {
         const e = entry.value;
-        if (!e || e.state === "missing") return;
+        if (!e || !["collected", "collection_failed"].includes(e.collectionState)) return;
         const key = props.username + "@" + props.date;
         if (!force && loadedFor === key) return;
         loadedFor = key;
@@ -1072,12 +1001,12 @@
       const isText = (t) => !t || t === "text";
 
       return { entry, remote, loadEntry, msgs, loadMessages, loadMore,
-               meta, num, md, weekday, reportURL, isText, hm };
+               meta, num, md, weekday, isText, hm };
     },
     template: `
       <div>
         <div class="banner" v-if="remote.loading && !entry" aria-live="polite">正在读取这个交点…</div>
-        <div class="banner err" v-else-if="remote.error && !entry" role="alert">
+        <div class="banner err" v-if="remote.error" role="alert">
           明细取不到：{{ remote.error }}
           <button type="button" class="btn" @click="loadEntry">重试</button>
         </div>
@@ -1096,7 +1025,7 @@
           <div class="hd">
             <div>
               <h1>{{ entry.chat }}</h1>
-              <div class="sub">{{ date }} {{ weekday(date) }} · <Badge :state="entry.state" /></div>
+              <div class="sub">{{ date }} {{ weekday(date) }} · <EntryStatus :entry="entry" /></div>
             </div>
             <div class="pager"><a :href="'/d/' + date">当天全部群</a></div>
           </div>
@@ -1115,46 +1044,25 @@
             </p>
           </div>
 
-          <!-- 有产物就摆出来：ready 直接看，orphan 先警告再给看 -->
-          <template v-if="entry.report_html || entry.report_png">
-            <div class="banner err" v-if="entry.state === 'orphan'">
-              日报在，但这一天的原始归档不在了——下面这份产物可能是死的，
-              点开之前先当它有风险。
-            </div>
+          <div class="banner" :class="{err: ['collection_failed','report_failed','orphan'].includes(entry.state)}">
+            {{ meta(entry.state).note }}
+          </div>
+          <div class="banner err" v-if="entry.collectionState === 'collection_failed' && entry.state !== 'collection_failed'">
+            本次采集失败，下面保留已有日报；不能据此认定本次采集成功。
+          </div>
+          <WorkBuddyAction :username="username" :date="date" />
+
+          <template v-if="entry.html_url || entry.png_url">
             <div class="btns">
-              <a v-if="entry.report_html" class="btn" :href="reportURL(entry.report_html)"
-                 target="_blank" rel="noopener">新窗口打开</a>
-              <a v-if="entry.report_png" class="btn" :href="reportURL(entry.report_png)" download>下载长图</a>
+              <a v-if="entry.html_url" class="btn" :href="entry.html_url" target="_blank" rel="noopener">打开日报 HTML</a>
+              <a v-if="entry.png_url" class="btn" :href="entry.png_url" download>下载长图</a>
               <a class="btn quiet" :href="'/c/' + encodeURIComponent(entry.username)">看这个群的历史</a>
             </div>
-            <!--
-              优先用长图：日报本来就是一张 900 宽的整页图（是为了转发做的），
-              用 <img> 让它跟页面一起滚，比 iframe 里再套一根滚动条干净得多。
-              iframe 只在"有 HTML 没 PNG"时兜底——那种情况很少，
-              但真遇上时不能给一个打不开的空框。
-            -->
-            <img v-if="entry.report_png" class="reportimg"
-                 :src="reportURL(entry.report_png)" alt="日报长图" />
-            <iframe v-else class="report" :src="reportURL(entry.report_html)" title="日报"></iframe>
+            <p v-if="!entry.png_url" class="note">未提供长图，可阅读 HTML 日报。</p>
+            <iframe v-if="entry.html_url" class="report" :src="entry.html_url" title="日报" sandbox></iframe>
+            <img v-else class="reportimg" :src="entry.png_url" alt="日报长图" />
           </template>
-
-          <!-- 没有日报：说清楚为什么，并把原始记录摆出来让人自己判断 -->
           <template v-else>
-            <div class="banner" v-if="entry.state === 'pending'">
-              有 {{ num(entry.total) }} 条消息（{{ num(entry.chars) }} 字），但日报还没生成。
-              素材看起来是够的。
-            </div>
-            <div class="banner" v-else-if="entry.state === 'empty'">
-              这一天有 {{ num(entry.total) }} 条消息，但素材不足以成篇——多半是单人在单向发布。
-              <b>这不是欠账</b>，不用管它。
-            </div>
-            <div class="banner err" v-else-if="entry.state === 'orphan'">
-              日报文件还在，但原始归档不见了（可能被清理过）。这份产物可能已经死了。
-            </div>
-            <div class="banner err" v-else-if="entry.state === 'missing'">
-              这一天连归档都没有——采集断了。这不是「没有对话」。
-            </div>
-
             <div class="panel" v-if="msgs.loading && !msgs.data">
               <div class="skeleton skel-40"></div>
               <div class="skeleton skel-40"></div>
@@ -1190,7 +1098,7 @@
 
             <EmptyBox v-else-if="msgs.data"
               title="这一天没有可显示的原始记录"
-              body="归档里没有消息。" />
+              body="本页没有可显示的消息；采集是否完成以采集状态为准。" />
           </template>
         </template>
       </div>`,
@@ -1203,76 +1111,15 @@
     emits: ["nav-rows"],
     components: { EmptyBox },
     setup(props, { emit }) {
-      /** 按日历连续生成列——断更处必须是可见的空列，不能从表里消失 */
       const table = computed(() => {
-        const d = props.data;
-        if (!d || !d.matrix || !d.matrix.rows.length) return null;
-
-        const m = d.matrix;
-        const anchor = m.dates.length ? m.dates[m.dates.length - 1] : null;
-        if (!anchor) return null;
-
-        const span = props.span;
-        const dates = [];
-        for (let i = span - 1; i >= 0; i--) dates.push(shiftDays(anchor, -i));
-
-        const rows = m.rows.map((r) => {
-          const byDate = {};
-          (r.cells || []).forEach((c) => {
-            byDate[c.date] = c;
-          });
-          const cells = dates.map((dt) => {
-            const c = byDate[dt];
-            if (!c) return { date: dt, state: "missing", total: 0, symbol: "·" };
-            const state =
-              c.state || (c.ready ? "ready" : c.total ? "pending" : "missing");
-            const symbol =
-              state === "missing" ? "·" : state === "empty" ? "–" : num(c.total);
-            return { date: dt, state, total: c.total || 0, symbol };
-          });
-          return { username: r.username, chat: r.chat, cells };
-        });
-
-        // 整列无归档 ≠ 每个群各缺一天。
-        // 前者是「这天没采到」（采集未覆盖 / 采集断了），后者是「这天有人聊、这个群没聊」。
-        // 两者混成一片 `·`，十列结构性零值会把真正的空洞埋掉——
-        // 所以整列无归档的列不出点，靠「有没有符号」而不是靠颜色区分。
-        const hasCol = dates.map((dt, i) =>
-          rows.some((r) => r.cells[i].state !== "missing")
-        );
-        rows.forEach((r) => {
-          r.cells.forEach((c, i) => {
-            if (!hasCol[i]) {
-              c.blank = true;
-              c.symbol = "";
-            }
-          });
-        });
-
-        // 开头那段「谁都没有归档」的日子是采集的起点边界，一列一天纯属占地方：
-        // 十天十列长得一模一样，等于用半张表说一句话。压成一列写日期区间。
-        // 区间内部的空白不压——那是采集真的断过，一天都得看见。
-        const firstData = hasCol.indexOf(true);
-        const leadEnd = firstData < 0 ? dates.length : firstData;
-        const cols = [];
-        if (leadEnd > 0) {
-          const a = dates[0];
-          const b = dates[leadEnd - 1];
-          cols.push({
-            key: "lead",
-            label: leadEnd === 1 ? md(a) : `${md(a)}–${md(b)}`,
-            blank: true,
-            days: leadEnd,
-          });
-        }
-        dates.slice(leadEnd).forEach((dt, i) => {
-          const idx = leadEnd + i;
-          cols.push({ key: dt, label: md(dt), blank: !hasCol[idx], days: 1 });
-        });
-
-        const nodata = hasCol.filter((x) => !x).length;
-        const startLabel = firstData >= 0 ? dates[firstData] : null;
-        return { dates, rows, hasCol, nodata, cols, startLabel, span };
+        const m = props.data && props.data.matrix;
+        if (!m || !m.rows.length || !m.dates.length) return null;
+        const dates = m.dates.slice(-props.span);
+        const rows = m.rows.map(r => ({ ...r, cells: dates.map(date => {
+          const c = (r.cells || []).find(c => c.date === date);
+          return c ? { ...c, symbol: meta(c.state).label } : { date, state: "unknown", symbol: "未核验", blank: true };
+        }) }));
+        return { dates, rows, cols: dates.map(date => ({ key: date, label: md(date) })), nodata: 0 };
       });
 
       watch(
@@ -1322,7 +1169,7 @@
           </div>
         </div>
 
-        <EmptyBox v-if="!table" title="还没有归档数据" body="先跑一轮 archive。" />
+        <EmptyBox v-if="!table" title="还没有归档数据" body="请在 WorkBuddy 中核对关注群与需要采集的日期。" />
 
         <template v-else>
           <div class="scroll">
@@ -1341,28 +1188,15 @@
                   </th>
                   <td class="c" v-for="col in table.cols" :key="col.key"
                       :class="[ 'c-' + cellFor(r, col).state, { 'c-nodata': col.blank } ]">
-                    <a v-if="!col.blank" :href="detailURL(r.username, col.key)"
-                       :aria-label="r.chat + ' ' + col.key + ' ' + cellFor(r, col).state">{{ cellFor(r, col).symbol }}</a>
+                    <a v-if="!cellFor(r, col).blank" :href="detailURL(r.username, col.key)"
+                       :aria-label="r.chat + ' ' + col.key + ' ' + cellFor(r, col).symbol">{{ cellFor(r, col).symbol }}</a><span v-else>未核验</span>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div class="legend">
-            <span><span class="dot d-ready"></span>已出日报</span>
-            <span><span class="dot d-pending"></span>有数据未生成</span>
-            <span><span class="dot d-orphan"></span>数据缺失</span>
-            <span><span class="dot d-empty"></span>素材不足（格内 –）</span>
-            <span><span class="dot d-missing"></span>无归档（格内 ·）</span>
-            <span><span class="dot d-nodata"></span>整体未采集（空格）</span>
-          </div>
-
-          <p class="note">
-            后两态的底色几乎一样，所以另用符号兜底：<code>–</code> 是有归档但素材不够，
-            <code>·</code> 是连归档都没有。整格空白表示这一天所有群都没有归档——
-            那是采集的边界，不是哪个群欠了。
-          </p>
+          <p class="note">每格显示服务提供的采集或日报状态。未返回的交点显示“未核验”，不推断历史关注范围；打开交点可分别核对采集与日报。</p>
         </template>
       </div>`,
   };
@@ -1370,30 +1204,15 @@
   // ────────────────────────────────────────────── 视图：搜索
 
   const SearchView = {
-    props: ["data", "q"],
+    props: ["data", "filters", "chats"],
     emits: ["nav-rows", "do-search"],
     components: { EmptyBox },
     setup(props, { emit }) {
-      const local = reactive({ text: props.q || "" });
-      let timer = null;
-
-      watch(
-        () => props.q,
-        (v) => {
-          if (v !== local.text) local.text = v || "";
-        }
-      );
-
-      function onInput() {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          emit("do-search", local.text.trim());
-        }, 320);
-      }
-
+      const local = reactive({ q: "", chat: "", from: "", to: "", error: "" });
+      watch(() => props.filters, filters => Object.assign(local, filters), { immediate: true });
       function submit() {
-        clearTimeout(timer);
-        emit("do-search", local.text.trim());
+        local.error = local.from && local.to && local.from > local.to ? "开始日期不能晚于结束日期。" : "";
+        if (!local.error) emit("do-search", { q: local.q.trim(), chat: local.chat, from: local.from, to: local.to });
       }
 
       const nav = computed(() => {
@@ -1407,7 +1226,7 @@
 
       watch(nav, (v) => emit("nav-rows", v), { immediate: true });
 
-      return { local, onInput, submit, highlight, num, md, detailURL };
+      return { local, submit, highlight, num, md, detailURL };
     },
     template: `
       <div>
@@ -1421,10 +1240,16 @@
         </div>
 
         <form class="searchbox" @submit.prevent="submit">
-          <input type="search" v-model="local.text" @input="onInput"
-                 placeholder="搜一个词、一个人的名字、某个群的片段…"
+          <input type="search" name="q" v-model="local.q" maxlength="200" required
+                 placeholder="输入消息关键词…"
                  aria-label="搜索消息" autocomplete="off" />
           <button class="btn" type="submit">搜索</button>
+          <div class="search-filters">
+            <label>群<select name="chat" v-model="local.chat"><option value="">全部群</option><option v-for="c in chats" :key="c.username" :value="c.username">{{ c.chat }} · {{ c.username }}</option></select></label>
+            <label>开始日期<input type="date" name="from" v-model="local.from" /></label>
+            <label>结束日期<input type="date" name="to" v-model="local.to" /></label>
+          </div>
+          <p v-if="local.error" class="filter-error" role="alert">{{ local.error }}</p>
         </form>
 
         <div class="hint" v-if="!data || !data.search || data.search.done === false">
@@ -1435,11 +1260,11 @@
           正在搜「{{ data.search.q }}」…
         </div>
 
-        <div class="banner err" v-if="data && data.search && data.search.error">
+        <div class="banner err" v-if="data && data.search && data.search.error" role="alert">
           {{ data.search.error }}
         </div>
 
-        <template v-if="data && data.search && data.search.results">
+        <template v-if="data && data.search && data.search.done && data.search.results">
           <div class="sub mb-block">
             「{{ data.search.q }}」命中 <b>{{ num(data.search.count) }}</b> 条
             <template v-if="data.search.truncated">（只显示前 {{ data.search.count }} 条，收窄条件再试）</template>
@@ -1450,12 +1275,12 @@
             body="换个词试试。中文搜索是子串匹配，两个字的词也能搜到。" />
 
           <div class="list" v-else>
-            <a class="item stack" v-for="(r, i) in data.search.results" :key="i"
+            <a class="item stack" v-for="(r, i) in data.search.results" :key="r.username + '@' + r.date + '@' + i"
                :href="detailURL(r.username, r.date)">
               <div class="hit-top">
                 <span class="d">{{ md(r.date) }}</span>
                 <span class="t">
-                  <span class="note">{{ r.chat || r.username }}</span>
+                  <span class="note">{{ r.chat || r.username }} · {{ r.username }}</span>
                   <span class="note"> · {{ r.sender }}</span>
                 </span>
                 <span class="hit-time">{{ (r.time || '').slice(11) }}</span>
@@ -1473,6 +1298,7 @@
     components: {
       Badge,
       EmptyBox,
+      WorkBuddyAction,
       RecentView,
       DatesView,
       DayView,
@@ -1515,9 +1341,12 @@
       async function loadBrowse() {
         store.loading = true;
         store.copyNotice = "";
+        store.error = null;
+        store.data = null;
+        store.status = null;
         try {
           store.status = await getJSON("/api/status");
-          if (!store.status.reading.available) {
+          if (store.status.reading?.available !== true) {
             store.data = null;
             store.error = null;
             return;
@@ -1532,7 +1361,7 @@
       }
 
       const setupTitle = computed(() => {
-        const code = store.status && store.status.reading.code;
+        const code = store.status?.reading?.code;
         if (code === "CONFIG_INVALID") return "先检查这台电脑的配置";
         if (code === "INDEX_NOT_READY") return "配置已保存，继续准备首份日报";
         if (code === "INDEX_INVALID") return "先恢复阅读索引";
@@ -1540,7 +1369,7 @@
       });
 
       const setupRequest = computed(() => {
-        const code = store.status && store.status.reading.code;
+        const code = store.status?.reading?.code;
         if (code === "CONFIG_INVALID")
           return "请使用微信群日报 Skill，检查并修复这台电脑的配置，保留已有聊天归档和日报。";
         if (code === "INDEX_NOT_READY")
@@ -1552,7 +1381,7 @@
 
       async function copySetupRequest() {
         try {
-          await navigator.clipboard.writeText(setupRequest.value);
+          await copyText(setupRequest.value);
           store.copyNotice = "已复制，请粘贴到 WorkBuddy 对话。";
         } catch (e) {
           store.copyNotice = "未能自动复制，请选中上面的文字，复制到 WorkBuddy 对话。";
@@ -1567,6 +1396,11 @@
         () => store.helpOpen,
         (open) => {
           document.body.style.overflow = open ? "hidden" : "";
+          nextTick(() => {
+            const dialog = document.getElementById("keyboard-help");
+            if (open && dialog && !dialog.open) dialog.showModal();
+            if (!open && dialog?.open) dialog.close();
+          });
         }
       );
 
@@ -1582,56 +1416,45 @@
       }
 
       function afterRoute() {
-        if (!store.status || !store.status.reading.available) return;
-        const r = store.route;
-        if (r.name === "search" && r.q && r.q !== store.search.q) {
-          store.search.q = r.q;
-          doSearch(r.q);
-        }
-        if (r.name !== "search") {
+        if (store.status?.reading?.available !== true) return;
+        if (store.route.name === "search") doSearch(store.route.filters);
+        else {
+          searchReq++;
+          store.search.loading = false;
           store.search.done = false;
         }
       }
 
       // ---------- 搜索
-
       let searchReq = 0;
-
-      async function doSearch(q) {
-        store.search.q = q;
-        if (!q) {
-          Object.assign(store.search, {
-            results: null, count: 0, loading: false, error: null, done: false,
-          });
-          go("/search", true);
-          return;
-        }
-        // URL 与状态同步，但不要在已经搜过时反复 push
-        const want = "/search?q=" + encodeURIComponent(q);
+      async function doSearch(filters) {
+        const q = filters.q || "";
+        const params = new URLSearchParams();
+        for (const key of ["q", "chat", "from", "to"]) if (filters[key]) params.set(key, filters[key]);
+        const want = "/search" + (params.size ? "?" + params : "");
         if (location.pathname + location.search !== want) {
           history.replaceState({}, "", want);
           store.route = parseRoute(want);
         }
-
         const my = ++searchReq;
-        store.search.loading = true;
-        store.search.error = null;
+        Object.assign(store.search, { q, results: null, count: 0, error: null, done: false, loading: !!q });
+        if (!q) return;
+        if (filters.from && filters.to && filters.from > filters.to) {
+          store.search.error = "开始日期不能晚于结束日期。";
+          store.search.loading = false;
+          return;
+        }
         try {
-          const d = await getJSON("/api/search?q=" + encodeURIComponent(q) + "&limit=200");
-          if (my !== searchReq) return; // 后发先至的旧请求丢掉
+          const d = await getJSON("/api/search?" + params + "&limit=200");
+          if (my !== searchReq) return;
           store.search.results = d.results || [];
           store.search.count = d.count || 0;
           store.search.truncated = !!d.truncated;
           store.search.done = true;
           store.cursor = -1;
-          store.navRows = (d.results || []).map((r) => ({
-            href: detailURL(r.username, r.date),
-            label: `${r.sender} ${md(r.date)}`,
-          }));
         } catch (e) {
           if (my !== searchReq) return;
           store.search.error = e.message;
-          store.search.results = null;
           store.search.done = true;
         } finally {
           if (my === searchReq) store.search.loading = false;
@@ -1660,20 +1483,20 @@
         const tag = (e.target && e.target.tagName) || "";
         const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(tag);
 
+        if (store.helpOpen) {
+          if (e.key === "Escape") { e.preventDefault(); store.helpOpen = false; }
+          return;
+        }
         if (e.key === "Escape") {
           if (typing) {
             e.target.blur();
-            return;
-          }
-          if (store.helpOpen) {
-            store.helpOpen = false;
             return;
           }
           back();
           return;
         }
 
-        if (typing) return;
+        if (typing || /^(BUTTON|A|SUMMARY)$/.test(tag) || e.target?.isContentEditable) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
 
         if (e.key === "/") {
@@ -1765,6 +1588,17 @@
 
       // ---------- 派生
 
+      const runStatus = computed(() => {
+        const status = store.status || {};
+        const schedule = status.schedule || {};
+        const first = { not_observed: "未核验", running: "执行中", verified: "已核验可读", empty: "零消息", insufficient: "素材不足", failed: "失败" };
+        const registered = schedule.registered === false ? "未登记"
+          : schedule.registered === true && schedule.readback_at ? "已回读" : "待核验";
+        return { first: status.first_report?.state === "verified" && !status.first_report.verified_at ? "未核验" : first[status.first_report?.state] || "未核验", registered,
+          plan: schedule.trigger_time ? `配置意图 ${schedule.trigger_time}（${schedule.timezone || '时区未核验'}），为开始触发时间` : "触发时间未设置",
+          observed: schedule.last_scheduled_run ? "已有记录，请在 WorkBuddy 中核对结果" : "尚未观察" };
+      });
+
       const navActive = computed(() => store.route.key);
 
       const title = computed(() => {
@@ -1786,7 +1620,9 @@
         () => store.cursor,
         (i) => {
           nextTick(() => {
-            document.querySelectorAll("[data-kb-current]").forEach((el) => el.removeAttribute("data-kb-current"));
+            document.querySelectorAll("[data-kb-current]").forEach(el => {
+              el.removeAttribute("data-kb-current"); el.classList.remove("kb-cursor");
+            });
             const all = document.querySelectorAll(".item, .mini, .card, table.mx td.c a");
             const navRows = store.navRows;
             if (i < 0 || !navRows[i]) return;
@@ -1815,14 +1651,16 @@
         focusSearch,
         loadBrowse,
         setupTitle,
+        runStatus,
         setupRequest,
         copySetupRequest,
       };
     },
     template: `
+      <a class="skip-link" href="#reading-content">跳到正文</a>
       <header class="top">
         <a class="brand" href="/" @click.prevent="go('/')">群日报</a>
-        <nav class="nav">
+        <nav class="nav" aria-label="阅读导航">
           <a v-for="n in [
               {href:'/', label:'最近', key:'recent'},
               {href:'/dates', label:'按日期', key:'dates'},
@@ -1840,10 +1678,10 @@
         </nav>
       </header>
 
-      <main>
-        <div class="banner err" v-if="store.error">
+      <main id="reading-content" tabindex="-1">
+        <div class="banner err" v-if="store.error" role="alert">
           {{ store.error }}
-          <span class="dismiss" @click="store.error = null">关闭</span>
+          <button type="button" class="btn quiet" @click="loadBrowse">重新检查</button>
         </div>
 
         <div v-if="store.loading" aria-busy="true" aria-live="polite">
@@ -1853,10 +1691,10 @@
           <div class="skeleton"></div>
         </div>
 
-        <section v-else-if="store.status && !store.status.reading.available"
+        <section v-else-if="store.status && store.status.reading?.available !== true"
           class="setup-state" aria-labelledby="setup-title">
           <div class="hd"><h1 id="setup-title">{{ setupTitle }}</h1></div>
-          <p>{{ store.status.reading.message }}</p>
+          <p>{{ store.status.reading?.message || '阅读状态未核验，请在 WorkBuddy 中核对。' }}</p>
           <p class="setup-request">{{ setupRequest }}</p>
           <div class="btns">
             <button class="btn" type="button" @click="copySetupRequest">复制给 WorkBuddy 的话</button>
@@ -1867,6 +1705,12 @@
         </section>
 
         <div v-else-if="store.data">
+          <details class="run-status">
+            <summary>运行状态 · 首报 {{ runStatus.first }} · 宿主任务 {{ runStatus.registered }}</summary>
+            <p>{{ runStatus.plan }}；真实定时运行：{{ runStatus.observed }}。</p>
+            <p>配置可读、首报核验、任务回读和定时成功分别记录。需要处理时，在 WorkBuddy 中核对。</p>
+            <WorkBuddyAction />
+          </details>
           <RecentView v-if="store.route.name === 'recent'"
             :data="store.data" :days="store.days"
             @nav-rows="onNavRows" @pick-days="pickDays" />
@@ -1891,7 +1735,7 @@
             :data="store.data" :span="store.span" @nav-rows="onNavRows" />
 
           <SearchView v-else-if="store.route.name === 'search'"
-            :data="store" :q="store.route.q" @nav-rows="onNavRows" @do-search="doSearch" />
+            :data="store" :filters="store.route.filters" :chats="store.data.chats || []" @nav-rows="onNavRows" @do-search="doSearch" />
 
           <div v-else-if="store.route.name === 'notfound'">
             <div class="hd"><h1>页面不存在</h1></div>
@@ -1910,21 +1754,20 @@
         · 按 <kbd>?</kbd> 看快捷键
       </footer>
 
-      <div v-if="store.helpOpen" class="help-scrim"
-           @click.self="store.helpOpen = false">
+      <dialog id="keyboard-help" class="help-scrim" aria-labelledby="help-title"
+           @cancel.prevent="store.helpOpen = false" @click.self="store.helpOpen = false">
         <div class="help-panel">
-          <h2>键盘快捷键</h2>
+          <h2 id="help-title">键盘快捷键</h2>
           <div class="help-keys">
             <div><kbd>1</kbd> 最近 · <kbd>2</kbd> 按日期 · <kbd>3</kbd> 按群 · <kbd>4</kbd> 矩阵 · <kbd>5</kbd> 搜索</div>
             <div><kbd>j</kbd> / <kbd>k</kbd> 上下移动　<kbd>g</kbd> / <kbd>G</kbd> 跳到首尾</div>
             <div><kbd>Enter</kbd> 进入光标项　<kbd>Esc</kbd> 返回</div>
             <div><kbd>/</kbd> 聚焦搜索　<kbd>?</kbd> 打开这张表</div>
           </div>
-          <p class="help-foot">
-            输入框里按 Esc 会先退出输入，不会离开页面。
-          </p>
+          <p class="help-foot">输入框里按 Esc 会先退出输入，不会离开页面。</p>
+          <button type="button" class="btn quiet" @click="store.helpOpen = false">关闭快捷键</button>
         </div>
-      </div>`,
+      </dialog>`,
   };
 
   createApp(App).mount("#app");
