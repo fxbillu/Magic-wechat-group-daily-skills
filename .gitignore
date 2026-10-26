@@ -23,3 +23,6 @@ htmlcov/
 /skills/*/scripts/secrets/
 /skills/*/scripts/logs/
 /skills/*/dist/
+
+# Candidate binaries are published as GitHub Release assets.
+/dist/
