@@ -509,6 +509,7 @@ def _state(cfg: dict, e: dict) -> str:
     """
     from . import collection
     collection.decorate(cfg, e)
+    e["expected"] = True  # An actual collection/report record defines this group-day.
     if e['report']['state'] in ('ready', 'stale'):
         return 'ready'
     if e['report']['state'] == 'orphan':
@@ -534,9 +535,8 @@ def get_entry(cfg: dict, date: str, username: str) -> dict | None:
 def by_day(cfg: dict, date: str, include_configured: bool = True) -> dict:
     """当日总览：这一天所有群
 
-    include_configured=True 时，把配置里监控但当天没归档的群也列出来，
-    状态置 `missing`。这样「今天这个群没聊」和「采集挂了」不会被混成
-    同一个空白。
+    include_configured=True 时，仅为有明确生效日期且当天应采集的关注群补行。
+    旧配置的当前名单不能证明过去的应采集范围；真实记录始终保留。
     """
     rows = _query_entries(cfg, "date=?", (date,))
     seen = {r["username"] for r in rows}
@@ -546,15 +546,8 @@ def by_day(cfg: dict, date: str, include_configured: bool = True) -> dict:
     if include_configured:
         for c in settings.active_chats(cfg):
             u = c.get("username") or ""
-            if u and u not in seen:
-                rows.append({
-                    "date": date, "username": u, "chat": c.get("name", u),
-                    "kind": c.get("kind", "group"), "total": 0, "chars": 0,
-                    "unique_senders": 0, "data_file": "", "report_html": None,
-                    "report_png": None, "title": None, "lead": None,
-                    "cast": [], "archived_at": None, "composed_at": None,
-                    "state": "missing",
-                })
+            if u and u not in seen and settings.expected_on(cfg, u, date) is True:
+                rows.append(uncollected_entry(cfg, date, c))
     from . import collection
     for row in rows:
         if "collection" not in row:
@@ -705,11 +698,21 @@ def recent_days(cfg: dict, limit_days: int = 7) -> list:
 
 
 
-def _missing_cell(cfg, date, chat):
+def uncollected_entry(cfg, date, chat):
+    """Explicit navigation may describe an unobserved point without claiming it was due."""
     from . import collection
-    entry = {'date': date, 'username': chat['username'], 'total': 0, 'ready': False, 'state': 'missing'}
+    username = chat['username']
+    entry = {'date': date, 'username': username, 'chat': chat.get('name') or chat.get('chat') or username,
+             'kind': chat.get('kind', 'group'), 'total': 0, 'chars': 0, 'unique_senders': 0,
+             'data_file': '', 'report_html': None, 'report_png': None, 'title': None, 'lead': None,
+             'cast': [], 'archived_at': None, 'composed_at': None, 'state': 'missing',
+             'expected': settings.expected_on(cfg, username, date)}
     collection.decorate(cfg, entry)
     return entry
+
+
+def _missing_cell(cfg, date, chat):
+    return dict(uncollected_entry(cfg, date, chat), ready=False)
 
 
 def matrix(cfg: dict, days: int = 14) -> dict:
@@ -739,7 +742,7 @@ def matrix(cfg: dict, days: int = 14) -> dict:
             cells[(e["date"], e["username"])] = {
                 "date": e["date"], "total": e["total"],
                 "ready": bool(e["report"]["html_url"]),
-                "state": legacy_state,
+                "state": legacy_state, "expected": True,
                 "collection": e["collection"], "report": e["report"],
             }
         # 配置里监控但从未归档的群也要出现在矩阵里（否则会"消失得无声无息"）
@@ -771,24 +774,23 @@ def search(cfg: dict, kw: str, chat: str | None = None,
            limit: int = 100) -> list:
     """跨群跨天搜消息正文
 
-    chat 参数收 username 或群名片段，方便前端直接传用户输入。
+    chat 参数仅收契约规定的稳定 username，不以名称或 ID 片段扩大范围。
     """
-    where, args = ["text LIKE ?"], [f"%{kw}%"]
+    where, args = ["m.text LIKE ?"], [f"%{kw}%"]
     if chat:
-        where.append("(username=? OR username LIKE ? OR username IN "
-                     "(SELECT username FROM entry WHERE chat LIKE ?))")
-        args += [chat, f"%{chat}%", f"%{chat}%"]
+        where.append("m.username=?")
+        args.append(chat)
     if sender:
-        where.append("sender LIKE ?")
+        where.append("m.sender LIKE ?")
         args.append(f"%{sender}%")
     if mtype:
-        where.append("type=?")
+        where.append("m.type=?")
         args.append(mtype)
     if start:
-        where.append("date>=?")
+        where.append("m.date>=?")
         args.append(start)
     if end:
-        where.append("date<=?")
+        where.append("m.date<=?")
         args.append(end)
     args.append(limit)
 

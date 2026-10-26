@@ -263,6 +263,27 @@ def active_chats(cfg: dict | None = None) -> list:
     return [c for c in (cfg.get("chats") or []) if c.get("daily", True)]
 
 
+
+def expected_on(cfg: dict, username: str, target_date: str) -> bool | None:
+    """A current follow list alone is not evidence of historical collection scope."""
+    from datetime import date
+    chat = next((c for c in cfg.get('chats', []) if c.get('username') == username), None)
+    if chat is None:
+        return None
+    if not chat.get('daily', True):
+        return False
+    effective_from = chat.get('effective_from')
+    try:
+        if not isinstance(effective_from, str) or len(effective_from) != 10:
+            return None
+        start = date.fromisoformat(effective_from)
+        if start.isoformat() != effective_from:
+            return None
+        return date.fromisoformat(target_date) >= start
+    except ValueError:
+        return None
+
+
 def summary(cfg: dict | None = None) -> str:
     """人类可读的配置摘要，供 CLI 打印"""
     cfg = cfg or load()

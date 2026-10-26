@@ -142,10 +142,10 @@ def api_entry(qs: dict, cfg: dict) -> tuple:
     date, username = point
     entry = db.get_entry(cfg, date, username)
     if not entry:
-        # by_day 会把「配置里关注、当天无归档」的群补成 missing；
-        # 这正是明细页需要解释的第五种情况，不能返回 404 把它藏掉。
-        day = db.by_day(cfg, date, include_configured=True)
-        entry = next((e for e in day["chats"] if e["username"] == username), None)
+        configured = next((c for c in settings.active_chats(cfg)
+                           if c.get('username') == username), None)
+        if configured:
+            entry = db.uncollected_entry(cfg, date, configured)
     if not entry:
         return {"error": "该群这一天没有归档", "date": date,
                 "username": username}, 404

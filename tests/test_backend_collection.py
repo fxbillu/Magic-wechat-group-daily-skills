@@ -276,11 +276,11 @@ class CollectionTest(unittest.TestCase):
             result = cli(package, env, 'archive', '--chats', '单一名称群', '--date', DAY)
             self.assertNotEqual(result.returncode, 0)
             day = endpoint(base, 'day', date=DAY)
-            self.assertEqual({row['username'] for row in day['chats']}, set(GROUPS))
+            self.assertEqual({row['username'] for row in day['chats']}, {GROUPS[0]})
             self.assertEqual(endpoint(base, 'entry', date=DAY, username=GROUPS[0])['collection']['state'], 'failed')
             result = cli(package, env, 'archive', '--chats', '无法确认的群名', '--date', DAY)
             self.assertNotEqual(result.returncode, 0)
-            self.assertEqual({row['username'] for row in endpoint(base, 'day', date=DAY)['chats']}, set(GROUPS))
+            self.assertEqual({row['username'] for row in endpoint(base, 'day', date=DAY)['chats']}, {GROUPS[0]})
 
 
 if __name__ == '__main__':
