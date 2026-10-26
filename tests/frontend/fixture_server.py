@@ -14,7 +14,7 @@ WEB = Path(__file__).resolve().parents[2] / 'skills/wechat-group-daily/scripts/w
 DATE = '2026-10-25'
 
 def entry(username, collection, report, count=None, url=None):
-    return dict(username=username, chat='合成同名群', date=DATE, state='ready',
+    return dict(username=username, chat='合成同名群', date=DATE, expected=True, state='ready',
                 total=count, unique_senders=1, chars=count, title='',
                 collection=dict(state=collection, revision='synthetic-v2', message_count=count,
                     observed_at='2026-10-26T08:30:00+08:00',

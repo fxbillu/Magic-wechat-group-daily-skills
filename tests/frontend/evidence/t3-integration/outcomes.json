@@ -1,0 +1,19 @@
+[
+  {
+    "check": "browser",
+    "phase": "scope",
+    "result": "passed"
+  },
+  {
+    "check": "browser",
+    "phase": "unfollowed",
+    "result": "passed"
+  },
+  {
+    "check": "T3/scope",
+    "effective_day_inclusive": true,
+    "unknown_scope_not_debt": true,
+    "unfollowed_or_removed_history_preserved": true,
+    "result": "passed"
+  }
+]

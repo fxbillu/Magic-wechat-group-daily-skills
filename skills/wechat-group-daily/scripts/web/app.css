@@ -1095,3 +1095,6 @@ dialog.help-scrim::backdrop { background: color-mix(in srgb, var(--ink) 28%, tra
 dialog.help-scrim .help-panel { width: 100%; }
 .mmeta { flex-wrap: wrap; }
 .identity, .setup-request { overflow-wrap: anywhere; }
+
+/* Stable identities disambiguate same-name rows inside the scrollable matrix. */
+.mx th.chat .identity { white-space: normal; max-width: 160px; }

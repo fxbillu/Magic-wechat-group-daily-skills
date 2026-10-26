@@ -20,6 +20,8 @@
     insufficient: { label: "素材不足", cls: "empty", title: "素材不足，未成篇", note: "本次素材不足以成篇。可在 WorkBuddy 中核对来源或选择其他日期。" },
     orphan: { label: "素材归档缺失", cls: "orphan", title: "日报保留，素材归档缺失", note: "可查看已有日报；原始素材暂时无法核对，请在 WorkBuddy 中恢复归档。" },
     empty: { label: "成功零消息", cls: "empty", title: "采集完成，该日零消息", note: "已成功完成目标范围的采集，结果为零消息。" },
+    scope_unknown: { label: "关注范围未知", cls: "missing", title: "这一天的关注范围尚未核验", note: "没有此日期的采集记录，也没有当时关注范围的证据；此项不计作历史缺口。" },
+    out_of_scope: { label: "当前关注范围外", cls: "missing", title: "不在当前这一轮关注范围内", note: "按当前关注范围的已有证据，此日不在应采集范围内，不计作历史缺口。单一生效日不代表完整的历次关注记录。" },
     not_collected: { label: "未采集", cls: "missing", title: "这一天尚未采集", note: "尚无采集结果，不能据此判断群内是否有消息。" },
     collection_running: { label: "采集中", cls: "pending", title: "正在采集素材", note: "采集尚在进行，结果未确认。" },
     report_running: { label: "产稿中", cls: "pending", title: "日报正在生成", note: "产稿尚在进行，已有稿件可继续阅读。" },
@@ -57,10 +59,13 @@
     if (collectionState === "collected" && (!Number.isInteger(c.message_count) || c.message_count <= 0)) collectionState = "unknown";
     let reportState = Object.hasOwn(REPORT_META, r.state) ? REPORT_META[r.state] : "unknown";
     if (["ready", "stale", "orphan"].includes(reportState) && !html && !png) reportState = "unknown";
+    const scopeState = c.state === "not_collected" && entry.expected !== true
+      ? entry.expected === false ? "out_of_scope" : "scope_unknown" : null;
     let state = reportState;
     if (["not_collected", "collection_running", "collection_failed", "empty", "unknown"].includes(collectionState)
         && !["ready", "stale", "orphan", "report_failed", "report_running"].includes(reportState)) state = collectionState;
-    return { ...entry, state, collectionState, reportState, html_url: html, png_url: png,
+    if (scopeState) state = scopeState;
+    return { ...entry, state, scopeState, collectionState, reportState, html_url: html, png_url: png,
       total: Number.isInteger(c.message_count) && c.message_count >= 0 ? c.message_count : null,
       unique_senders: c.message_count == null ? null : entry.unique_senders,
       chars: c.message_count == null ? null : entry.chars,
@@ -68,11 +73,12 @@
   }
 
   function summarize(entries) {
+    const expected = entries.filter(e => e.expected === true);
     const counts = {};
-    entries.forEach(e => { counts[e.state] = (counts[e.state] || 0) + 1; });
-    return { counts, expected: entries.length,
-      archived: entries.filter(e => ["collected", "empty"].includes(e.collectionState)).length,
-      readable: entries.filter(e => e.html_url || e.png_url).length };
+    expected.forEach(e => { counts[e.state] = (counts[e.state] || 0) + 1; });
+    return { counts, expected: expected.length,
+      archived: expected.filter(e => ["collected", "empty"].includes(e.collectionState)).length,
+      readable: expected.filter(e => e.html_url || e.png_url).length };
   }
 
   // The HTTP boundary adapts contract fields once, shared by every reading view.
@@ -257,7 +263,7 @@
 
   const EntryStatus = {
     props: ["entry"], components: { Badge },
-    template: `<span class="entry-status"><span>采集 <Badge :state="entry.collectionState || 'unknown'" /></span><span>日报 <Badge :state="entry.reportState || 'unknown'" /></span></span>`,
+    template: `<span class="entry-status"><Badge v-if="entry.scopeState" :state="entry.scopeState" /><template v-else><span>采集 <Badge :state="entry.collectionState || 'unknown'" /></span><span>日报 <Badge :state="entry.reportState || 'unknown'" /></span></template></span>`,
   };
 
   const WorkBuddyAction = {
@@ -310,8 +316,10 @@
         if (!d || !d.recent) return [];
         const limit = props.days;
         const slice = d.recent.slice(0, limit);
-        return slice.map(g => ({ ...g, byState: summarize(g.entries || []).counts,
-          expected: (g.entries || []).length }));
+        return slice.map(g => {
+          const summary = summarize(g.entries || []);
+          return { ...g, byState: summary.counts, expected: summary.expected, readable: summary.readable };
+        });
       });
 
       // 键盘导航：每个群卡片一个落点，外加日期组头
@@ -394,7 +402,7 @@
               <span class="wd">{{ weekday(g.date) }} · {{ dateTitle(g.date) }}</span>
             </a>
             <span class="st">
-              可读 {{ (g.entries || []).filter(e => e.html_url || e.png_url).length }} / {{ g.expected }}
+              可读 {{ g.readable }} / {{ g.expected }}
               <template v-if="g.byState.pending"> · 未生成 {{ g.byState.pending }}</template>
               <template v-if="g.byState.insufficient"> · 素材不足 {{ g.byState.insufficient }}</template>
               <template v-if="g.byState.orphan"> · 数据缺失 {{ g.byState.orphan }}</template>
@@ -653,6 +661,8 @@
             </div>
           </div>
 
+          <EmptyBox v-if="!day.entries.length" title="这一天没有可列出的记录"
+            body="当前证据未确定此日有应采集群，未将现有关注名单追溯为历史缺口。可按群查看实际历史。" />
           <article class="card" v-for="c in day.entries" :key="c.username"
                    :class="{ 'no-thumb': !c.png_url }">
             <a class="card-link" :href="detailURL(c.username, date)"
@@ -1068,7 +1078,7 @@
               <a v-if="entry.png_url" class="btn" :href="entry.png_url" download>下载长图</a>
               <a class="btn quiet" :href="'/c/' + encodeURIComponent(entry.username)">看这个群的历史</a>
             </div>
-            <p v-if="!entry.png_url" class="note">未提供长图，可阅读 HTML 日报。</p>
+            <p v-if="!entry.png_url" class="note">未提供长图，可阅读 HTML 日报。报纸为固定宽度，窄屏可在独立窗口打开阅读。</p>
             <iframe v-if="entry.html_url" class="report" :src="entry.html_url" title="日报" sandbox></iframe>
             <img v-else class="reportimg" :src="entry.png_url" alt="日报长图" />
           </template>
@@ -1127,7 +1137,7 @@
         const dates = m.dates.slice(-props.span);
         const rows = m.rows.map(r => ({ ...r, cells: dates.map(date => {
           const c = (r.cells || []).find(c => c.date === date);
-          return c ? { ...c, symbol: meta(c.state).label } : { date, state: "unknown", symbol: "未核验", blank: true };
+          return c ? { ...c, symbol: meta(c.state).label, blank: !!c.scopeState } : { date, state: "unknown", symbol: "未核验", blank: true };
         }) }));
         return { dates, rows, cols: dates.map(date => ({ key: date, label: md(date) })), nodata: 0 };
       });
@@ -1194,19 +1204,19 @@
               <tbody>
                 <tr v-for="r in table.rows" :key="r.username">
                   <th class="chat" scope="row">
-                    <a :href="'/c/' + encodeURIComponent(r.username)">{{ r.chat }}</a>
+                    <a :href="'/c/' + encodeURIComponent(r.username)">{{ r.chat }}<span class="identity">{{ r.username }}</span></a>
                   </th>
                   <td class="c" v-for="col in table.cols" :key="col.key"
                       :class="[ 'c-' + cellFor(r, col).state, { 'c-nodata': col.blank } ]">
                     <a v-if="!cellFor(r, col).blank" :href="detailURL(r.username, col.key)"
-                       :aria-label="r.chat + ' ' + col.key + ' ' + cellFor(r, col).symbol">{{ cellFor(r, col).symbol }}</a><span v-else>未核验</span>
+                       :aria-label="r.chat + ' ' + col.key + ' ' + cellFor(r, col).symbol">{{ cellFor(r, col).symbol }}</a><span v-else>{{ cellFor(r, col).symbol || '未核验' }}</span>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <p class="note">每格显示服务提供的采集或日报状态。未返回的交点显示“未核验”，不推断历史关注范围；打开交点可分别核对采集与日报。</p>
+          <p class="note">“当前关注范围外”和“关注范围未知”均不计作历史缺口；只有实际记录或有当日应采证据的交点显示采集与日报状态。生效日期仅代表当前这一轮关注，不能还原完整的历次关注记录。</p>
         </template>
       </div>`,
   };

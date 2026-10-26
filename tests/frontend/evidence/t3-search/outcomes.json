@@ -1,0 +1,15 @@
+[
+  {
+    "check": "browser",
+    "phase": "search-filter",
+    "result": "passed"
+  },
+  {
+    "check": "T3/F10",
+    "http_status": 200,
+    "exact_groups": 2,
+    "partial_id_matches": 0,
+    "out_of_range_matches": 0,
+    "result": "passed"
+  }
+]
