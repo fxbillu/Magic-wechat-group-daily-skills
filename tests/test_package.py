@@ -23,6 +23,13 @@ class PackageTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.skill = self.root / 'wechat-group-daily'
         shutil.copytree(SKILL, self.skill, ignore=shutil.ignore_patterns('__pycache__'))
+        # This release branch starts at T0. T1 is integrated by the controller.
+        # A clearly synthetic module in temporary CLI copies tests packaging only.
+        # Never replace real collection.py when running against the integrated tree.
+        collection = self.skill / 'scripts/lib/wechat_data/collection.py'
+        if not collection.exists():
+            collection.write_text('# Synthetic packaging fixture; no collection implementation.\n',
+                                  encoding='utf-8')
         self.env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1',
                         WECHAT_DAILY_CONFIG=str(self.root / 'external/config.json'))
 
@@ -235,3 +242,32 @@ class PackageTest(unittest.TestCase):
         self.assertIn(result.returncode, (0, 1), result.stdout + result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report['optional']['pillow']['state'], 'passed')
+
+
+    def test_missing_t1_collection_module_blocks_complete_asset_check(self):
+        self.align_test_versions()
+        (self.skill / 'scripts/lib/wechat_data/collection.py').unlink()
+        result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('MISSING_FILE: scripts/lib/wechat_data/collection.py', result.stdout)
+        self.assertFalse((self.root / 'candidate.zip').exists())
+
+    def test_t1_collection_and_report_records_cannot_be_whitelisted(self):
+        self.align_test_versions()
+        manifest_path = self.skill / 'references/release-files.json'
+        initial = manifest_path.read_text(encoding='utf-8')
+        for directory in ('collections', 'report-records'):
+            with self.subTest(directory=directory):
+                relative = f'scripts/{directory}/2026-10-25/synthetic.json'
+                path = self.skill / relative
+                path.parent.mkdir(parents=True)
+                path.write_text('{}', encoding='utf-8')
+                manifest = json.loads(initial)
+                manifest['files'].append(relative)
+                manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
+                result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('MANIFEST_INVALID', result.stdout)
+                self.assertFalse((self.root / 'candidate.zip').exists())
+                shutil.rmtree(self.skill / 'scripts' / directory)
+                manifest_path.write_text(initial, encoding='utf-8')

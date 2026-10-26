@@ -18,6 +18,7 @@
     "scripts/lib/wechat_data/archive.py",
     "scripts/lib/wechat_data/avatar.py",
     "scripts/lib/wechat_data/chat.py",
+    "scripts/lib/wechat_data/collection.py",
     "scripts/lib/wechat_data/config.py",
     "scripts/lib/wechat_data/content.py",
     "scripts/lib/wechat_data/db.py",

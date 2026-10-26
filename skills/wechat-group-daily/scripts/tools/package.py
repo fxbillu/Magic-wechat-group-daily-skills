@@ -26,13 +26,14 @@ ROOT = Path(__file__).resolve().parents[2]
 NAME = 'wechat-group-daily'
 MANIFEST = 'references/release-files.json'
 RUNTIME_NAMES = {'config.json', 'all_keys.json', '.stamp.json', '.env', 'data', 'reports',
-                 'logs', 'secrets', 'decrypted', 'dist', '__pycache__', 'legacy-import'}
+                 'logs', 'secrets', 'decrypted', 'dist', '__pycache__', 'legacy-import',
+                 'collections', 'report-records'}
 # These cannot be made optional by deleting a line from the release inventory.
 ESSENTIAL = {
     'SKILL.md', 'VERSION', MANIFEST, 'references/writing-spec.md',
     'references/dependencies.md', 'references/third-party.md', 'references/third-party.json',
     'references/windows-acceptance.md', 'licenses/vue-MIT.txt', 'licenses/wcdb-key-tool-MIT.txt',
-    'scripts/config.example.json', 'scripts/fetch.py',
+    'scripts/config.example.json', 'scripts/fetch.py', 'scripts/lib/wechat_data/collection.py',
     'scripts/tools/setup.py', 'scripts/tools/doctor.py',
     'scripts/tools/serve.py', 'scripts/tools/render_daily.py',
     'scripts/tools/check_story.py', 'scripts/tools/safe_decrypt.py',
@@ -199,8 +200,6 @@ def audit(root, files):
         elif not path.is_dir():
             problems.append(f'UNSUPPORTED_ENTRY: {rel}')
     problems += [f'MISSING_FILE: {p}' for p in sorted(files - actual)]
-    if problems:
-        return problems
     skill = root / 'SKILL.md'
     if skill.is_file() and not skill.is_symlink() and (root / 'VERSION').is_file() and not (root / 'VERSION').is_symlink():
         text = skill.read_text(encoding='utf-8')
@@ -216,6 +215,8 @@ def audit(root, files):
             problems.append('VERSION_MISMATCH: SKILL frontmatter and VERSION must agree')
         if fields.get('name') != NAME or not fields.get('description'):
             problems.append('FRONTMATTER_INVALID')
+    if problems:
+        return problems
     problems.extend(references(root, files))
     problems.extend(third_party(root, files))
     problems.extend(config_template(root))
