@@ -115,3 +115,9 @@
 - Candidate metadata: `1.3.0-rc.1`; clean release notes replace imported operational history; explicit release manifest includes capabilities.py and scheduling.md. Personal configuration, keys, conversations and reports remain outside the package.
 - Final checks: 56 public checks, 55 passed and one optional Pillow positive test skipped in this interpreter; Node syntax and static package checks passed. The targeted formal CLI → Python API → browser regression passed in 11.283 seconds. Browser launch first failed under the default macOS sandbox, then passed with GUI access; this was an environment access failure, not a product assertion failure.
 - Windows extraction, real model content, PNG and actual scheduled execution remain for the user's machine. These do not block uploading this candidate. No formal production acceptance is claimed.
+
+## 2026-10-27 — Publish the Windows test candidate
+
+- Published private GitHub prerelease [v1.3.0-rc.1](https://github.com/fxbillu/wechat-group-daily-skills/releases/tag/v1.3.0-rc.1) after development checks; source/tag commit `3d5d0a09b78d58a38d8c26e178b16ef52f62af78`.
+- Uploaded the 43-file clean Skill ZIP (228014 bytes), build receipt and SHA256SUMS. GitHub's returned ZIP digest matches local SHA-256 `d5555932fdf3339b4effb69192227844832be08b39f5e2dd9fdfec8e914b2a2e`.
+- Release was read back as prerelease=true, draft=false; source branch was pushed and clean. No Windows acceptance claimed. User's next step is importing the ZIP on Windows, generating a first daily report and configuring/checking the existing native task.
