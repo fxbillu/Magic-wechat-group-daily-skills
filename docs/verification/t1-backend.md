@@ -54,8 +54,9 @@ git diff --check
 
 - 新增 `collection.py` 需由 T5 的严格出包白名单纳入；不要遗漏后将源码测试当最终 ZIP 验收。
 - 最小契约补充建议：`/api/messages` 在当前采集失败且从无成功素材时返回 409 `COLLECTION_FAILED`，包含 `retryable: true`、`next_action: decrypt_and_retry_in_workbuddy` 和 collection；有成功素材时仍返回 200 并携带最新失败状态。共享契约未由本对话改写。
+- 另建议契约明确：时区能力缺失使用 TIMEZONE_UNAVAILABLE / repair_timezone_in_workbuddy，retryable=false；无法计算区间时失败记录 range=null，不伪造另一时区区间。
 - T3 原有过滤搜索缺陷 F10 和引文署名校验 F12 保持原票范围；本轮只修素材画像的身份读取兼容，不提前实施其他票据。
-- 根开发日志建议记录：上述逐库覆盖和稳定身份决定、13 项后端公共验收通过、WAL 保守失败与未完成的 Windows 取数限制。
+- 根开发日志建议记录：上述逐库覆盖和稳定身份决定、16 项后端公共验收通过、WAL 保守失败与未完成的 Windows 取数限制。
 
 ## 两轴评审
 
@@ -68,4 +69,4 @@ git diff --check
 
 新增三项公共回归分别先红后绿；缺 IANA 数据的 Windows Python 需要 T2 环境检查明确发现并引导配置时区数据。未完成能力修复前不宣称该配置可采集。
 
-修正后完整检查：23 项通过（T1 后端 16 项 + T0 原有 7 项），约 9 秒；Node 语法检查、git diff --check 通过。二次独立复查结论待补充。
+修正后完整检查：23 项通过（T1 后端 16 项 + T0 原有 7 项），约 9 秒；Node 语法检查、git diff --check 通过。二次独立复查：Standards 原 4 项全部解决，实际重跑时区缺失与名称失败两项公共回归通过，剩余 0 项；Spec 原 2 项全部解决，独立验证纽约 02:00Z 拒绝/04:00Z 成功及无名称伪身份，剩余 0 项。两轴均未发现修正引入的实质新问题。Windows 文件行为仍待真实机器验证，不能以 closing 的代码检查替代。
