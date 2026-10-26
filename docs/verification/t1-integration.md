@@ -77,3 +77,12 @@ git diff --check
 ## 工作区保留与交接
 
 开始前旧分支 `codex/wechat-t1-frontend` 有一张未提交的 `tests/frontend/evidence/recent-1280.png`。已用 Git stash 保留，说明为 `preserve pre-QA screenshot on codex/wechat-t1-frontend`；未将它混入本分支，也未删除旧分支。恢复应在旧分支按该 stash 身份操作。
+
+## 双轴独立评审
+
+评审固定点为 `5a128916f919e830fc958b652680b756c072cbe5`，对象为首个提交 `957e147` 的三点 diff。两个只读子 Agent 分别检查 Standards 与 Spec，均未重跑旧 fixture 测试或检查图片像素。
+
+- Standards：0 项可执行问题，无需修改的 Fowler smell；确认未知值、失败说明、只读边界和真实公共测试边界符合规范。
+- Spec：0 项可执行问题；确认两处 UI 修正属于必要范围，T1 证据、T3 F10 及 Windows/390px 报纸内横滚限制分开记录。
+
+本轮实质检查已结束，服务与浏览器测试空间均已清理；不推送、不合并、不关闭 #3/#5。
