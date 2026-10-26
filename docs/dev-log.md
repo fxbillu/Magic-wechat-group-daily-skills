@@ -71,3 +71,12 @@
 - Decisions: T0 technical acceptance is complete. This documentation update does not claim the issue has been closed, the branch pushed or the three visible development chats created; the coordinator handles those actions separately. No product code or Git state was changed by this documentation task.
 - Verification: copied evidence matches its source bytes; updated local Markdown links resolve; JSON parses; whitespace checks pass.
 - Limits and follow-up: T1–T5, the old defect backlog, real Windows extraction/WAL and model output, PNG, host scheduled execution, second-machine installation and final clean distribution remain in their assigned scope. Complete main-chat issue/branch housekeeping and then dispatch the approved parallel development conversations.
+
+## 2026-10-27 — Record T0 closure and visible parallel development dispatch
+
+- Reason: preserve the completed coordination handoff after the main chat closed T0 and started the three user-visible development conversations.
+- Confirmed state supplied by the coordinator: [T0 #2](https://github.com/fxbillu/wechat-group-daily-skills/issues/2) is closed with its [acceptance comment](https://github.com/fxbillu/wechat-group-daily-skills/issues/2#issuecomment-6420893737). Shared baseline `1bef2b65624f7f6dd7d4273ce30cfa4cc8bc2884` was pushed to the private `origin/codex/wechat-skill-integration` branch.
+- Dispatch: `微信群日报｜后端与初始化` (`01a178f9-e194-7fe2-943e-09c24c97150f`) handles current T1 backend work; `微信群日报｜Impeccable 前端` (`01a178fa-4c1c-7200-9307-42f103e0bb07`) handles T1 frontend and preparatory T3 fixtures without closing T3; `微信群日报｜发布与独立验收` (`01a178fa-ade2-7200-a090-a682cb2606c0`) prepares T5 without publishing or claiming T5 completion. All three were read back as active and use independent workspaces from the same baseline; exact workspace paths are recorded in the main plan.
+- Isolation: the main working directory was clean at dispatch and had not been changed by the child conversations. The main chat will read results and integrate them in dependency order; no separate background monitor was configured.
+- Verification: updated the main plan's stale pending-close/push/dispatch wording; checked local links and whitespace. This documentation task changed only the plan and log, with no Git or external write.
+- Limits and next step: T1–T5 remain incomplete; real Windows operation remains unverified. Preserve the approved scope and blocking edges while collecting each conversation's evidence for integration.
