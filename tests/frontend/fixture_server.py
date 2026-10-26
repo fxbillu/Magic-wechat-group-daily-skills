@@ -5,6 +5,7 @@ All groups/messages/report documents below are synthetic. No production data acc
 """
 import copy
 import json
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -31,7 +32,8 @@ ENTRIES = [entry('fixture-missing', 'not_collected', 'pending'),
            entry('fixture-stale', 'collected', 'stale', 3, '/r/synthetic-old.html'),
            entry('fixture-running', 'running', 'running'),
            entry('fixture-unknown', None, None),
-           entry('fixture-broken', 'collected', 'ready', 2)]
+           entry('fixture-broken', 'collected', 'ready', 2),
+           entry('fixture-invalid-empty', 'empty', 'pending')]
 CHATS = [dict(username=e['username'], chat=e['chat'], followed=True, days=1,
               total=e['total'], reports=0, last_date=DATE, last_state='ready') for e in ENTRIES]
 # This newly followed group has no past entries; the UI must not invent a past failure.
@@ -54,7 +56,15 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB), **kwargs)
 
+    def end_headers(self):
+        self.send_header('Cache-Control','no-store')
+        super().end_headers()
+
     def do_GET(self):
+        # Browser profiles may cache earlier fixture peers on the same loopback port.
+        # Every test must consume the source currently under test.
+        if 'If-Modified-Since' in self.headers:
+            del self.headers['If-Modified-Since']
         url = urlsplit(self.path)
         q = parse_qs(url.query)
         one = lambda name, default='': q.get(name, [default])[0]
@@ -74,12 +84,22 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json(data)
             return self.json(browse(entries))
         if url.path == '/api/day':
+            if one('date') == '2026-10-23':
+                time.sleep(1)
             if one('date') == '2026-10-24':
                 return self.json({'error':'合成日期读取失败','code':'FIXTURE_FAILED','retryable':True,'next_action':'retry_in_workbuddy'}, 500)
             return self.json(dict(date=one('date'),chats=entries if one('date') == DATE else [],total=10))
         if url.path == '/api/chat':
+            if one('username') == 'fixture-average':
+                history = [entry('fixture-average','collected','pending',2), entry('fixture-average','empty','pending',0)]
+                history[1]['date']='2026-10-24'
+                return self.json(dict(username='fixture-average',chat='合成计数群',entries=history))
+            if one('username') == 'fixture-delayed':
+                time.sleep(1)
             return self.json(dict(username=one('username'),chat='合成同名群',entries=[e for e in entries if e['username']==one('username')]))
         if url.path == '/api/entry':
+            if one('username') == 'fixture-delayed':
+                time.sleep(1)
             e = next((e for e in entries if e['username']==one('username')), None)
             return self.json(e or {'error':'没有该交点'}, 200 if e else 404)
         if url.path == '/api/messages':

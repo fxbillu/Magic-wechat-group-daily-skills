@@ -35,7 +35,7 @@ git diff --check
 /Users/mac/.codex/skills/impeccable/scripts/impeccable detect --json skills/wechat-group-daily/scripts/web/app.js skills/wechat-group-daily/scripts/web/app.css
 ```
 
-- 前端 unittest：3/3 通过；运行浏览器为 Ego Lite 0.6.0.16。每次使用独立任务空间、四个仅本机监听的合成服务，结束后关闭空间和服务。
+- 前端 unittest：5/5 通过；运行浏览器为 Ego Lite 0.6.0.16。每次使用独立任务空间、四个仅本机监听的合成服务，结束后关闭空间和服务。
 - 根公共入口基线检查：7/7 通过。
 - JavaScript 语法与 whitespace：通过。
 - Impeccable：本会话针对正式 `app.js` 执行 context 一次，编辑前读取 craft-floor；targeted detect 返回 `[]`，不代替交互与视觉验收。PRODUCT 的旧 schema 提示未自动修订。
@@ -58,3 +58,23 @@ git diff --check
 集成后必须将浏览器切到真实 Python API，验证采集零消息/失败/部分覆盖、重采保留旧稿和过滤搜索，不能以 fixture HTTP 200 替代。契约对全量历史聚合和 `last_scheduled_run` 的结构尚未详细定义：窗口外日期显示未核验，定时记录提示核对；如需更细状态由主控协调最小契约增量。
 
 Windows 微信真实取数、真实库/WAL、模型产稿与来源核对、PNG、WorkBuddy 任务登记回读/真实触发及第二台安装均未验证。
+
+## 独立双轴评审及修复
+
+固定点为上述 T0 基线，初次评审对象为 `6fbefd5` 的三点 diff。
+
+### Standards
+
+初评 2 项 P2：等待时同时显示无数据结论；`empty` 计数缺失仍显示成功零消息。没有需要单独修改的 Fowler smell。
+
+已修复：日期/群/详情恢复加载、错误、空态的互斥分支；成功状态同时核对完整覆盖及已知计数，empty 必须恰为 0，collected 必须为正整数。公共浏览器测试分别观察到旧行为失败和修复通过。成功群数仍为 6；新增异常 empty 夹具后共 11 个交点，异常计数不进入成功统计。
+
+### Spec
+
+初评 2 项 P2：成功零消息被排除在每日平均数之外；加载时出现无数据结论（与 Standards 重复）。未发现额外范围扩张，未误报后端或 Windows 完成。
+
+已修复：仅统计成功且计数已知的日期，同时保留零值。新增历史场景为 2 条与 0 条，修改前平均为 2，修改后平均为 1，归档天数保持 2。慢 HTTP 日期、群、详情测试均验证请求进行中不出现空态结论。
+
+评审原始计数：Standards 2 项、最高 P2；Spec 2 项、最高 P2，去重共 3 项，均已补回归修复。后续复核结果由提交后的复核补充。
+
+测试服务显式禁用静态缓存，避免不同测试空间复用浏览器缓存时读取旧源码；每次仍从正式 web 目录提供资产，没有替换产品内部代码。

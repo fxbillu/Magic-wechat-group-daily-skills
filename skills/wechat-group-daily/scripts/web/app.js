@@ -53,6 +53,8 @@
     const html = artifactURL(r.html_url), png = artifactURL(r.png_url);
     let collectionState = Object.hasOwn(COLLECTION_META, c.state) ? COLLECTION_META[c.state] : "unknown";
     if (["collected", "empty"].includes(collectionState) && c.coverage?.complete !== true) collectionState = "unknown";
+    if (collectionState === "empty" && c.message_count !== 0) collectionState = "unknown";
+    if (collectionState === "collected" && (!Number.isInteger(c.message_count) || c.message_count <= 0)) collectionState = "unknown";
     let reportState = Object.hasOwn(REPORT_META, r.state) ? REPORT_META[r.state] : "unknown";
     if (["ready", "stale", "orphan"].includes(reportState) && !html && !png) reportState = "unknown";
     let state = reportState;
@@ -620,7 +622,7 @@
     template: `
       <div>
         <div class="banner" v-if="remote.loading && !day" aria-live="polite">正在读取这一天…</div>
-        <div class="banner err" v-if="remote.error" role="alert">
+        <div class="banner err" v-else-if="remote.error" role="alert">
           这一天取不到：{{ remote.error }}
           <button type="button" class="btn" @click="loadDay">重试</button>
         </div>
@@ -815,12 +817,13 @@
       const stats = computed(() => {
         const rs = rows.value;
         if (!rs.length) return null;
-        const totals = rs.filter((r) => r.total).map((r) => r.total);
+        const collected = rs.filter(r => ["collected", "empty"].includes(r.collectionState) && Number.isInteger(r.total));
+        const totals = collected.map(r => r.total);
         const avg = totals.length
           ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)
           : 0;
         return {
-          days: rs.filter(r => ["collected", "empty"].includes(r.collectionState)).length,
+          days: collected.length,
           avg,
           ready: rs.filter((r) => r.html_url || r.png_url).length,
           first: rs[rs.length - 1].date,
@@ -845,7 +848,7 @@
     template: `
       <div>
         <div class="banner" v-if="remote.loading && !chat" aria-live="polite">正在读取群时间线…</div>
-        <div class="banner err" v-if="remote.error" role="alert">
+        <div class="banner err" v-else-if="remote.error" role="alert">
           群时间线取不到：{{ remote.error }}
           <button type="button" class="btn" @click="loadChat">重试</button>
         </div>
@@ -1006,7 +1009,7 @@
     template: `
       <div>
         <div class="banner" v-if="remote.loading && !entry" aria-live="polite">正在读取这个交点…</div>
-        <div class="banner err" v-if="remote.error" role="alert">
+        <div class="banner err" v-else-if="remote.error" role="alert">
           明细取不到：{{ remote.error }}
           <button type="button" class="btn" @click="loadEntry">重试</button>
         </div>

@@ -61,6 +61,12 @@ class ReaderBrowserTests(unittest.TestCase):
     def test_history_and_combined_filters(self):
         self.run_flow('check-history.mjs')
 
+    def test_successful_zero_days_count_toward_average(self):
+        self.run_flow('check-average.mjs')
+
+    def test_loading_does_not_claim_no_data(self):
+        self.run_flow('check-loading.mjs')
+
     def test_reading_routes_keyboard_empty_error_and_responsive(self):
         self.run_flow('check-interactions.mjs')
 
