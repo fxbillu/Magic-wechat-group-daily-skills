@@ -1,5 +1,6 @@
 """Release behavior through the public package CLI and extracted ZIP only."""
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -39,7 +40,7 @@ class PackageTest(unittest.TestCase):
 
     def test_inconsistent_versions_block_build(self):
         p = self.skill / 'SKILL.md'
-        p.write_text(re.sub(r'^version:.*$', 'version: 0.0.0', p.read_text(), flags=re.M))
+        p.write_text(re.sub(r'^version:.*$', 'version: 0.0.0', p.read_text(encoding='utf-8'), flags=re.M), encoding='utf-8')
         result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn('VERSION_MISMATCH', result.stdout)
@@ -47,13 +48,13 @@ class PackageTest(unittest.TestCase):
 
     def align_test_versions(self):
         path = self.skill / 'SKILL.md'
-        version = (self.skill / 'VERSION').read_text().strip()
-        path.write_text(re.sub(r'^version:.*$', f'version: {version}', path.read_text(), flags=re.M))
+        version = (self.skill / 'VERSION').read_text(encoding='utf-8').strip()
+        path.write_text(re.sub(r'^version:.*$', f'version: {version}', path.read_text(encoding='utf-8'), flags=re.M), encoding='utf-8')
 
     def test_css_private_group_marker_blocks_and_is_not_echoed(self):
         self.align_test_versions()
         marker = '123456789012345' + '@chatroom'  # Synthetic, never a real chat.
-        with (self.skill / 'scripts/web/app.css').open('a') as output:
+        with (self.skill / 'scripts/web/app.css').open('a', encoding='utf-8') as output:
             output.write('\n/* ' + marker + ' */\n')
         result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
@@ -66,7 +67,7 @@ class PackageTest(unittest.TestCase):
         for name in ('surprise.bin', 'scripts/config.json', 'scripts/web/note.html'):
             with self.subTest(name=name):
                 path = self.skill / name
-                path.write_text('{}')
+                path.write_text('{}', encoding='utf-8')
                 result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertIn('UNKNOWN_FILE', result.stdout)
@@ -80,11 +81,11 @@ class PackageTest(unittest.TestCase):
                 path = self.skill / name
                 previous = path.read_bytes() if path.exists() else None
                 manifest_path = self.skill / 'references/release-files.json'
-                manifest = json.loads(manifest_path.read_text())
+                manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
                 if previous is None:
                     manifest['files'].append(name)
-                    manifest_path.write_text(json.dumps(manifest))
-                path.write_text('<svg><!-- WECHAT_DAILY_' + 'SYNTHETIC_LEAK --></svg>')
+                    manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
+                path.write_text('<svg><!-- WECHAT_DAILY_' + 'SYNTHETIC_LEAK --></svg>', encoding='utf-8')
                 result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertIn('PRIVACY', result.stdout)
@@ -93,7 +94,7 @@ class PackageTest(unittest.TestCase):
                 else:
                     path.unlink()
                     manifest['files'].remove(name)
-                    manifest_path.write_text(json.dumps(manifest))
+                    manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
 
     def test_candidate_is_rechecked_after_extracting_and_hash_is_reported(self):
         self.align_test_versions()  # Only this synthetic installed copy; source stays blocked.
@@ -127,7 +128,7 @@ class PackageTest(unittest.TestCase):
 
     def test_broken_relative_reference_blocks_the_candidate(self):
         self.align_test_versions()
-        with (self.skill / 'references/dependencies.md').open('a') as stream:
+        with (self.skill / 'references/dependencies.md').open('a', encoding='utf-8') as stream:
             stream.write('\n[required guide](missing-guide.md)\n')
         result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
@@ -135,7 +136,7 @@ class PackageTest(unittest.TestCase):
 
     def test_changed_vendor_or_license_requires_new_source_review(self):
         self.align_test_versions()
-        with (self.skill / 'licenses/vue-MIT.txt').open('a') as stream:
+        with (self.skill / 'licenses/vue-MIT.txt').open('a', encoding='utf-8') as stream:
             stream.write('\nmodified\n')
         result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
@@ -144,9 +145,9 @@ class PackageTest(unittest.TestCase):
     def test_personal_values_in_example_config_block_even_without_an_id_pattern(self):
         self.align_test_versions()
         path = self.skill / 'scripts/config.example.json'
-        config = json.loads(path.read_text())
+        config = json.loads(path.read_text(encoding='utf-8'))
         config['wechat']['account'] = 'SYNTHETIC-OWNER'
-        path.write_text(json.dumps(config))
+        path.write_text(json.dumps(config), encoding='utf-8')
         result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn('CONFIG_TEMPLATE_NOT_EMPTY', result.stdout)
@@ -218,11 +219,19 @@ class PackageTest(unittest.TestCase):
     def test_runtime_state_cannot_be_added_to_the_whitelist(self):
         self.align_test_versions()
         path = self.skill / 'scripts/config.json'
-        path.write_text('{}')
+        path.write_text('{}', encoding='utf-8')
         manifest_path = self.skill / 'references/release-files.json'
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
         manifest['files'].append('scripts/config.json')
-        manifest_path.write_text(json.dumps(manifest))
+        manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
         result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn('MANIFEST_INVALID', result.stdout)
+
+
+    @unittest.skipUnless(importlib.util.find_spec('PIL'), 'Pillow not installed in this interpreter')
+    def test_installed_pillow_can_encode_and_decode_a_png(self):
+        result = self.run_cli('--capabilities')
+        self.assertIn(result.returncode, (0, 1), result.stdout + result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report['optional']['pillow']['state'], 'passed')

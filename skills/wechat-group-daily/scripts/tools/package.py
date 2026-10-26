@@ -361,7 +361,7 @@ if aes_cbc_decrypt(key, iv, ciphertext).hex() != '6bc1bee22e409f96e93d7e11739317
         png = {'state': 'not_tested', 'code': 'BROWSER_NOT_REQUESTED'}
         if browser:
             page, screenshot = folder / 'probe.html', folder / 'probe.png'
-            page.write_text('<!doctype html><title>Capability probe</title><p>Synthetic page</p>')
+            page.write_text('<!doctype html><title>Capability probe</title><p>Synthetic page</p>', encoding='utf-8')
             png = probe([str(browser), '--headless', '--disable-gpu', '--no-first-run',
                          '--no-default-browser-check', f'--user-data-dir={folder / "profile"}',
                          f'--screenshot={screenshot}', '--window-size=320,240', page.as_uri()], timeout=25)
@@ -370,6 +370,7 @@ if aes_cbc_decrypt(key, iv, ciphertext).hex() != '6bc1bee22e409f96e93d7e11739317
                 if len(data) < 24 or data[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack('>II', data[16:24]) != (320, 240):
                     png = {'state': 'failed', 'code': 'PNG_NOT_PRODUCED'}
     pillow_program = """
+import io
 from PIL import Image
 out = io.BytesIO()
 Image.new('RGB', (2, 3)).save(out, format='PNG')

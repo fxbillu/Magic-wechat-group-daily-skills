@@ -47,12 +47,14 @@ python3 -B -m unittest discover -s tests -p 'test_package.py' -v
 
 | 命令/检查 | 实际结果 | 可以证明的范围 |
 |---|---|---|
-| `python3 -B -m unittest discover -s tests -p 'test_package.py' -v` | 14 项通过 | F13 修复与打包 CLI/ZIP 边界；成功构建用临时副本对齐版本，正式源码未改版本 |
-| `python3 -B -m unittest discover -s tests -p 'test_*.py' -v` | 21 项通过（14 发布 + 7 原 T0） | 公共 CLI 与已有真实 HTTP 读取测试；不含 Windows 取数/宿主实际行为 |
+| `python3 -B -m unittest discover -s tests -p 'test_package.py' -v` | 15 项：14 通过、1 因当前解释器缺 Pillow 跳过 | F13 修复与打包 CLI/ZIP 边界；成功构建用临时副本对齐版本，正式源码未改版本 |
+| `python3 -B -m unittest discover -s tests -p 'test_*.py' -v` | 22 项：21 通过、1 跳过（15 发布 + 7 原 T0） | 公共 CLI 与已有真实 HTTP 读取测试；不含 Windows 取数/宿主实际行为 |
 | `node --check skills/wechat-group-daily/scripts/web/app.js` | 退出 0 | 语法；没有修改前端，也未新增浏览器视觉验收 |
 | Python AST 解析、`git diff --check` | 通过 | 语法/空白；不能证明平台兼容 |
 | 正式源码 `package.py --build --output /tmp/wechat-release-source-blocked-candidate.zip` | 退出 1，`VERSION_MISMATCH`；未生成 ZIP | VERSION 1.2.0 / SKILL 1.1.2 真实阻断保留；主控集成时统一为目标 1.3.0 |
 | `package.py --capabilities` | 退出 1；Python/SQLite/Node Zstd 通过；AES 与 Pillow 失败，当前解释器无 cryptography/Pillow；PNG/语音/Windows/宿主未测 | 实际能力探测能揭露缺依赖；本轮没有安装任何依赖 |
+| 应用自带 Python 3.12.14：完整同一测试命令 | 22 项全部通过（含真实 Pillow 正向能力回归）；SQLite 3.53.1 | 使用已有依赖，无新安装；不继承为 Windows 兼容 |
+| 应用自带 Python 3.12.14：`package.py --capabilities` | 退出 0；AES、SQLite、Node Zstd、Pillow 均通过，cryptography 50.0.2 / Pillow 12.3.0；PNG 浏览器/语音/Windows/宿主仍未测 | 主线合成能力与可选 PNG 编解码成功；未执行真实浏览器截图或微信工具 |
 | 上游源码与许可核对 | Vue vendor 与官方 npm 3.5.44 逐字节相同；两份 MIT 全文来自固定一手提交；取钥脚本 AST 差异已记录 | 来源/许可材料已补；上游自述不继承为产品 Windows 兼容证明 |
 
 红绿证据：旧打包器缺整个前端仍退出 0 并出包；加入回归后失败，再实现白名单阻断转绿。版本不一致、CSS 合成群 ID、未回查的 ZIP、断链、许可变化、个人模板值、运行配置被加入清单等也分别观察到失败后实现转绿。未知文件、HTML/SVG、篡改 ZIP 等使用明确合成数据，无旧导入区依赖。
@@ -77,4 +79,14 @@ python3 -B -m unittest discover -s tests -p 'test_package.py' -v
 ## 变更记录与评审
 
 2026-10-27：为修复 F13 和提前准备 T5，新建逐文件清单、来源/许可/依赖与 Windows 验收材料，替换原宽松打包器，增加公共 CLI 回归。关键决定：任何未知文件拒绝、版本差异保留阻断、只出内部候选、合成与 Windows 证据分开。验证见上表；主控专属 dev-log 未改。
-双轴评审固定点为上述基线，工程规范与票据范围独立评审；结果在评审完成后补记。
+双轴评审固定点为上述基线，首次评审提交 `e5992c2`，两名代理只读独立评审；修复增量随后分别复核。
+
+### Standards
+
+工程规范硬违反 0，Fowler smell 0。补充实现发现 1：Pillow 子进程片段漏 `import io`，会在已安装 Pillow 时恒报失败；已补导入，以应用自带、已安装 Pillow 的解释器从公共 CLI 复现红→绿。可移植性建议 1：中文文本读写未显式 UTF-8；已补齐 Path 读写和测试文本 open。增量复核确认均已闭合，无新问题。
+
+### Spec
+
+首次发现 1（P2）：上述 Pillow 误报违反真实能力探测要求。修复与正向回归后，独立复核确认原 P2 闭合，增量无新增规格发现。当前窄范围未见其他遗漏或越界；Windows/T5 状态不提升。
+
+两轴最终未解决发现均为 0；本轮技术检查通过不改变 T5 依赖与真实 Windows 验收门槛。
