@@ -1,0 +1,41 @@
+[
+  {
+    "width": 1280,
+    "overflow": false,
+    "hasLabel": true,
+    "hasRepeatedMeta": false,
+    "timeCopies": 1,
+    "openingCopies": 1,
+    "titleSize": "46px",
+    "dropcap": "left",
+    "openingColor": "rgb(46, 40, 32)",
+    "paper": "rgb(247, 243, 234)",
+    "metricsBelowOpening": true
+  },
+  {
+    "width": 768,
+    "overflow": false,
+    "hasLabel": true,
+    "hasRepeatedMeta": false,
+    "timeCopies": 1,
+    "openingCopies": 1,
+    "titleSize": "46px",
+    "dropcap": "left",
+    "openingColor": "rgb(46, 40, 32)",
+    "paper": "rgb(247, 243, 234)",
+    "metricsBelowOpening": true
+  },
+  {
+    "width": 390,
+    "overflow": false,
+    "hasLabel": true,
+    "hasRepeatedMeta": false,
+    "timeCopies": 1,
+    "openingCopies": 1,
+    "titleSize": "31px",
+    "dropcap": "left",
+    "openingColor": "rgb(46, 40, 32)",
+    "paper": "rgb(247, 243, 234)",
+    "metricsBelowOpening": true
+  }
+]

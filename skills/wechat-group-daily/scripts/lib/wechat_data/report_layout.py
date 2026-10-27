@@ -35,7 +35,8 @@ def render_front(story, content, activity):
     topics = content.get('topics') or []
     followups = content.get('followups') or []
     summary = (content.get('overview') or {}).get('summary')
-    deck = f'<p class="report-deck">{esc(summary)}</p>' if summary else ''
+    opening = story.get('opening') or summary
+    intro = f'<p class="opening">{esc(opening)}</p>' if opening else ''
     nav = []
     if topics or participants or followups:
         nav.append(('overview', '今日总览'))
@@ -47,7 +48,7 @@ def render_front(story, content, activity):
     if content.get('quotes'):
         nav.append(('quotes', '原文金句'))
     links = ''.join(f'<a href="#{key}">{label}</a>' for key, label in nav)
-    hero = f'<header class="report-head"><p class="report-meta">{esc(story.get("group_name"))} · {esc(story.get("date"))} · {esc(story.get("time_range"))}</p><h1>{esc(story.get("lead_title")).replace(chr(10), "<br>")}</h1>{deck}{metrics}<nav class="report-nav" aria-label="日报目录">{links}</nav></header>'
+    hero = f'<header class="report-head lead"><div class="eyebrow">Today&#x27;s Story · 今日故事</div><h1 class="title">{esc(story.get("lead_title")).replace(chr(10), "<br>")}</h1>{intro}</header>{metrics}<nav class="report-nav" aria-label="日报目录">{links}</nav>'
     topic_rows = ''.join(topic(row) for row in topics[:3])
     if len(topics) > 3:
         topic_rows += f'<details class="more-topics"><summary>更多话题 · {len(topics) - 3} 条</summary>{"".join(topic(row) for row in topics[3:])}</details>'

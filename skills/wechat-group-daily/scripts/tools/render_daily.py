@@ -244,7 +244,7 @@ def render_html(story: dict, theme: str = "magazine", accent: str | None = None,
     <div class="vol">Vol. {esc(story.get("date",""))} &nbsp;·&nbsp; {esc(story.get("time_range",""))}</div>
   </div>
   {front}
-  <section class="story-intro" id="story"><h2>完整故事线</h2><p>{esc(story.get('opening', ''))}</p></section>
+  <section class="story-intro" id="story"><h2>完整故事线</h2></section>
   <section class="timeline">{timeline}</section>
   {hl_html}
   {sops_html}

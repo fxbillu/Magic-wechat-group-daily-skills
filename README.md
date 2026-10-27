@@ -8,11 +8,11 @@
 
 选择多个微信群，由你 Windows 电脑上的 WorkBuddy 在选定时间每天整理成独立日报；按日期看多群，按群看历史，也能组合搜索。配置、密钥和归档文件保存在本机的包外目录。
 
-**Windows · WorkBuddy · 1.3.0-rc.6 Windows 测试候选**
+**Windows · WorkBuddy · 1.3.0-rc.8 Windows 测试候选**
 
-[复制安装提示词](#安装与更新) · [下载候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.6) · [Windows 试用说明](skills/wechat-group-daily/references/windows-acceptance.md)
+[复制安装提示词](#安装与更新) · [下载候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.8) · [Windows 试用说明](skills/wechat-group-daily/references/windows-acceptance.md)
 
-新版先看实算活跃统计、主要话题和待确认事项，再读完整故事线；人物动态、原文金句和搜索前后文都可核对来源。沿用每日一次的接续窗口，保留原配置和历史日报。
+新版保留「今日故事」的大标题与首字下沉导语，随后是实算活跃统计、主要话题和待确认事项，再读完整故事线；日期和实际时间范围只在报头显示一次。人物动态、原文金句和搜索前后文都可核对来源，沿用原配置与历史。
 
 ## 为什么做这个项目
 
@@ -26,9 +26,9 @@
 
 *截图来自程序的合成数据浏览检查，用于展示界面；不是真实微信群或 Windows 运行证明。可点击查看原图。*
 
-<a href="assets/readme/overview-first.png"><img src="assets/readme/overview-first.png" width="100%" alt="新版日报先看活跃统计、主要话题与待确认事项，再读完整故事；全部为合成示例。"></a>
+<a href="assets/readme/overview-first.png"><img src="assets/readme/overview-first.png" width="100%" alt="rc.8 日报恢复今日故事、大标题和首字下沉导语，随后展示活跃统计与主要话题；全部为合成示例。"></a>
 
-*rc.6 总览前置成稿，由正式渲染器生成，示例人员与群聊均为虚构。*
+*rc.8 今日故事开场与总览，由正式渲染器生成，示例人员与群聊均为虚构。*
 
 | 日常要做的事 | 在这里怎么完成 |
 | --- | --- |
@@ -54,7 +54,7 @@ https://github.com/fxbillu/Magic-wechat-group-daily-skills
 按照仓库说明加载微信群日报 Skill，带我完成初始化、生成首份日报，并配置每日任务。已有安装则更新，保留原配置和历史。
 ```
 
-也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.7) 导入 WorkBuddy。
+也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.8) 导入 WorkBuddy。
 
 ## 桌面快捷方式
 
@@ -80,7 +80,7 @@ Windows 初始化保存配置时，会创建带报纸图标的 **Magic 群日报
 
 ## 当前验证范围
 
-开发侧已完成必要修复与前后端联调。页面及真实 Python API 到浏览器联调结果见 [rc.6 验证记录](docs/verification/1.3.0-rc.6.md)；本次来源、许可、分发检查及整合的 Windows 修复验证见 [rc.7 记录](docs/verification/1.3.0-rc.7.md)。当前解释器的一项可选 Pillow 检查跳过。
+本轮开场、响应式、公共检查与安装包结果见 [rc.8 验证记录](docs/verification/1.3.0-rc.8.md)。此前完整页面联调见 [rc.6 记录](docs/verification/1.3.0-rc.6.md)，来源、许可和 Windows 修复验证见 [rc.7 记录](docs/verification/1.3.0-rc.7.md)。当前解释器的一项可选 Pillow 检查跳过。
 
 默认跳过不需要的 FTS 库，仅额外尝试群内名片所需的可选联系人索引，失败回退原名称；保留 rc.3 的核心库解密与恢复能力。程序按核心库结果判断解密成功，并支持跨盘目录和中断临时文件回收。数据库层仍按共享消息分片解密，归档仅保存所选群的指定日期；旧版无归属临时文件和历史日报不会自动删除。
 
