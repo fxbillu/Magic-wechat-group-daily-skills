@@ -142,3 +142,10 @@
 - Scope: replace the long README prompt with the agreed short prompt; move Git checkout, Skill loading, local installation notes and update steps into `references/install-and-update.md`; link that branch from SKILL.md and include the reference in the release file list.
 - Decisions: new clones use main; existing clones retain their branch and configuration. Existing initialization, report generation, desktop and scheduling flows are reused. Published candidate tags/ZIPs remain unchanged; this documentation update is available through Git.
 - Verification: local Markdown references, README image audit, static package check and whitespace check. No runtime code or new test framework was introduced.
+
+## 2026-10-27 — Explain project motivation and README usage boundaries
+
+- Reason: the user requested creation motivation, usage boundaries and a disclaimer, referring to xiangrui-toolkit while describing this project's actual behavior.
+- Scope: README only, plus this required log entry. Added the user's motivation: frequent discussions across many WeChat project groups make overall progress hard to follow; daily reports provide material for progress synchronization. Only the daily-report portion is currently shared; broader project-progress integration and synchronization are outside this release's scope.
+- Decisions: distinguish local file storage from WorkBuddy/model processing, which may send chat content or excerpts to cloud services depending on the host and model configuration. Describe lawful data access, privacy before sharing, prohibited misuse, independent/non-official status, AI verification, runtime limitations and component-specific licensing without choosing a new project license or promising absolute immunity from liability.
+- Verification: reviewed the prose against the user's stated motivation and current README, Skill and third-party documentation; checked Markdown references and whitespace. No runtime code changed, so product tests were not rerun. No GitHub publication, package update or new Windows acceptance is claimed.
