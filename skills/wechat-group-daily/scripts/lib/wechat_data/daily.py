@@ -110,7 +110,7 @@ def settle(cfg, username, state):
     if not entry or entry.get('collection', {}).get('state') == 'failed':
         return False
     enough, _ = material.sufficient(payload['stats']['total'], payload['stats']['chars'],
-                                   payload['stats']['unique_senders'])
+                                   payload['stats']['unique_senders'], template=payload.get('report_template', 'detailed'))
     if entry.get('report', {}).get('state') != 'ready' and enough:
         return False
     reason = 'reported' if entry.get('report', {}).get('state') == 'ready' else (
@@ -133,6 +133,7 @@ def prepare(cfg, until=None, finish=False, reopen=False):
             path = root / (hashlib.sha256(username.encode()).hexdigest() + '.json')
             try:
                 state = load_state(path)
+                previous_payload = None
                 previous_date = (state.get('pending') or {}).get('date') or state.get('completed_date')
                 if previous_date:
                     previous_payload = archive.load(cfg, previous_date, username)
@@ -141,6 +142,9 @@ def prepare(cfg, until=None, finish=False, reopen=False):
                 settled = settle(cfg, username, state)
                 if settled:
                     archive._atomic_write(str(path), state)
+                if state.get('pending'):
+                    state['pending']['report_template'] = (
+                        previous_payload or {}).get('report_template', 'detailed')
                 if finish:
                     results.append({'username': username, 'state': 'completed' if settled else (
                         'pending' if state.get('pending') else 'nothing'), **state})
@@ -208,7 +212,8 @@ def prepare(cfg, until=None, finish=False, reopen=False):
                 payload = archive.load(cfg, date, username)
                 state['pending'] = {'date': date, 'start': start.isoformat(), 'end': end.isoformat(),
                                     'revision': payload['collection']['revision'],
-                                    'archive': archive.archive_path(cfg, date, username)}
+                                    'archive': archive.archive_path(cfg, date, username),
+                            'report_template': payload.get('report_template', 'detailed')}
                 archive._atomic_write(str(path), state)
                 if settle(cfg, username, state):
                     archive._atomic_write(str(path), state)
@@ -219,7 +224,8 @@ def prepare(cfg, until=None, finish=False, reopen=False):
             except (DailyError, CoverageError, OSError, sqlite3.Error, LookupError) as error:
                 results.append({'username': username, 'state': 'failed',
                                 'code': str(error) if isinstance(error, DailyError) else 'DAILY_SOURCE_UNREADABLE'})
-    return {'mode': 'once_daily', 'cutoff': end.isoformat(), 'groups': results}
+    return {'mode': 'once_daily', 'cutoff': end.isoformat(), 'groups': results,
+            'delivery': {'open_browser': False, 'notify_only': True}}
 
 
 def revise_material(cfg, date, username, payload):
@@ -232,5 +238,6 @@ def revise_material(cfg, date, username, payload):
     if (pending and pending['date'] == date) or (not pending and state.get('completed_date') == date):
         state['pending'] = {'date': date, 'start': payload['range']['start'], 'end': payload['range']['end'],
                             'revision': payload['collection']['revision'],
-                            'archive': archive.archive_path(cfg, date, username)}
+                            'archive': archive.archive_path(cfg, date, username),
+                            'report_template': payload.get('report_template', 'detailed')}
         archive._atomic_write(str(path), state)

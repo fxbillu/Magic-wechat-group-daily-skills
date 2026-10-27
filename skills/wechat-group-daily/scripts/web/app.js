@@ -1019,6 +1019,9 @@
         return null;
       });
 
+      const reportTemplate = computed(() => (entry.value?.report?.html_url
+        ? entry.value.report.report_template : entry.value?.report_template) || "detailed");
+
       const msgs = reactive({ loading: false, error: null, data: null });
       let loadedFor = "";
       let messageReq = 0;
@@ -1091,7 +1094,7 @@
 
       const isText = (t) => !t || t === "text";
 
-      return { entry, remote, loadEntry, msgs, loadMessages, loadMore,
+      return { entry, reportTemplate, remote, loadEntry, msgs, loadMessages, loadMore,
                meta, num, md, weekday, isText, hm };
     },
     template: `
@@ -1116,7 +1119,7 @@
           <div class="hd">
             <div>
               <h1>{{ entry.chat }}</h1>
-              <div class="sub">{{ date }} {{ weekday(date) }} · <EntryStatus :entry="entry" /></div>
+              <div class="sub">{{ date }} {{ weekday(date) }} · {{ reportTemplate === 'project' ? '项目工作版' : '详细版' }} · <EntryStatus :entry="entry" /></div>
             </div>
             <div class="pager"><a :href="'/d/' + date">当天全部群</a></div>
           </div>
@@ -1146,7 +1149,7 @@
             <span v-if="issue.retryable === false">请先在 WorkBuddy 中修复上述问题，再重新采集。</span>
             <span v-else>请在 WorkBuddy 中核对问题，再决定是否重新采集。</span>
           </div>
-          <AnalysisPanel v-if="entry.data_file || ['collected', 'empty'].includes(entry.collectionState)"
+          <AnalysisPanel v-if="reportTemplate !== 'project' && (entry.data_file || ['collected', 'empty'].includes(entry.collectionState))"
             :key="username + '@' + date" :username="username" :date="date" />
           <WorkBuddyAction :username="username" :date="date" />
 

@@ -72,7 +72,8 @@ def assess(args) -> int:
         return 0
 
     senders = [str(m.get("sender", "")) for m in msgs]
-    texts = [str(m.get("text", "")) for m in msgs if m.get("type") == "text"]
+    texts = [str(m.get("text", "")) for m in msgs if m.get("type") == "text" or
+             (m.get("type") == "voice" and (m.get("voice") or {}).get("transcription", {}).get("state") == "transcribed")]
     chars = sum(len(t) for t in texts)
     turns = sum(1 for a, b in zip(senders, senders[1:]) if a != b)
     people = len({s for s in senders if s})
@@ -84,10 +85,18 @@ def assess(args) -> int:
     print(f"   参与者    {people} 人")
     print(f"   文字总量  {chars} 字（最长单条 {longest} 字）")
     print(f"   对话轮次  {turns}（相邻两条换人的次数）")
-    print(f"   参考段数  {material.describe(chars)}（内容决定，这只是护栏）")
+    from wechat_data import report_templates
+    template = report_templates.frozen(arch)
+    print(f"   日报模板  {report_templates.LABELS[template]}")
+    if template == "detailed":
+        print(f"   参考段数  {material.describe(chars)}（内容决定，这只是护栏）")
     print()
 
-    enough, why = material.sufficient(len(msgs), chars, people)
+    enough, why = material.sufficient(len(msgs), chars, people, template=template)
+    if template == "project":
+        print("→ 按工作事项提炼，短任务也可成报；无工作内容时简述未识别到工作事项。" if enough
+              else f"→ 暂无可读素材：{why}。")
+        return 0
     if not enough:
         print(f"→ 不够成篇：{why}。")
         if people <= 1 and turns == 0 and chars < material.MONOLOGUE_MIN_CHARS:
@@ -139,6 +148,14 @@ def main() -> int:
     if 'analysis' in story:
         from wechat_data import analysis
         problems.extend(analysis.validate(story['analysis'], arch))
+
+    from wechat_data import report_templates
+    problems.extend(report_templates.validate(story, arch))
+    if report_templates.frozen(arch) == 'project':
+        for problem in problems:
+            print('[错误] ' + problem)
+        print('[项目工作版] 检查任务结构、来源身份与素材版本；不套用长篇开场、故事段数或人物卡要求。')
+        return 1 if problems else 0
 
     # Match every literal quotation on one source row, including optional source identity.
     def check_quote(quote, label):

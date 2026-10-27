@@ -34,6 +34,8 @@ def day_range(cfg, start, end):
 def revision(payload):
     source = {'username': payload['chat']['username'], 'range': payload.get('range'),
               'messages': payload.get('messages') or []}
+    if payload.get('report_template') == 'project':
+        source['report_template'] = 'project'
     return hashlib.sha256(json.dumps(source, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -93,8 +95,10 @@ def decorate(cfg, entry):
         links[key] = '/r/' + quote(str(rel).replace('\\', '/'), safe='/') if valid else None
         if not valid:
             entry[field] = None
+    from .report_templates import frozen
+    entry['report_template'] = frozen(payload)
     enough, _ = material.sufficient(entry.get('total') or 0, entry.get('chars') or 0,
-                                    entry.get('unique_senders') or 0)
+                                    entry.get('unique_senders') or 0, template=entry['report_template'])
     state = 'pending'
     if links['html_url']:
         state = 'orphan' if not payload else 'ready'
@@ -107,6 +111,7 @@ def decorate(cfg, entry):
     voices = summary(payload or {})
     if voices:
         entry['voice_transcription'] = voices
-    entry['report'] = {'state': state, 'source_revision': record.get('source_revision'),
+    entry['report'] = {'state': state, 'report_template': record.get('report_template', 'detailed'),
+                       'source_revision': record.get('source_revision'),
                        'composed_at': record.get('composed_at') or entry.get('composed_at'),
                        **links, 'reason_code': 'MATERIAL_INSUFFICIENT' if state == 'insufficient' else None}

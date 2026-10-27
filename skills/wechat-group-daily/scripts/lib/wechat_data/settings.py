@@ -147,6 +147,8 @@ def load() -> dict:
         if not isinstance(cfg['chats'], list) or not all(isinstance(c, dict) for c in cfg['chats']):
             raise ConfigurationError('CONFIG_INVALID')
         for chat in cfg['chats']:
+            if chat.get('report_template', 'detailed') not in ('detailed', 'project'):
+                raise ConfigurationError('CONFIG_INVALID')
             if not isinstance(chat.get('username'), str) or not chat['username'] or not isinstance(chat.get('daily', True), bool):
                 raise ConfigurationError('CONFIG_INVALID')
         return cfg

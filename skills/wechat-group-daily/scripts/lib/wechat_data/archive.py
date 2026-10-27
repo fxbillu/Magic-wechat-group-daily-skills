@@ -78,6 +78,8 @@ def save(cfg: dict, date: str, chat, msgs, stats, start, end, *, period_mode=Non
         "messages": [m.to_dict() for m in msgs],
         "archived_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
+    from .report_templates import selected
+    payload['report_template'] = selected(cfg, chat.username)
     if period_mode:
         payload['period_mode'] = period_mode
     _, _, span = collection.day_range(cfg, start, end)

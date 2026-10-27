@@ -183,6 +183,9 @@ def _node(n: dict, i: int, uidx: dict, avatars: dict) -> str:
 def render_html(story: dict, theme: str = "magazine", accent: str | None = None,
                 uidx: dict | None = None, avatars: dict | None = None,
                 payload: dict | None = None) -> str:
+    if story.get('report_template') == 'project':
+        from wechat_data.report_templates import render_html as render_project
+        return render_project(story, payload)
     uidx = uidx or {}
     avatars = avatars or {}
     stats = story.get("stats") or {}
@@ -480,8 +483,16 @@ def main():
             print('[错误] 群身份不明确或没有对应归档，请指定 story.username。', file=sys.stderr)
             return 3
         story['username'] = username
-        story.setdefault('source_revision', entry['collection']['revision'])
+        if story.get('report_template', 'detailed') != 'project':
+            story.setdefault('source_revision', entry['collection']['revision'])
     payload = archive.load(cfg, str(story.get('date') or ''), story.get('username') or story.get('group_name', ''))
+    from wechat_data import report_templates
+    template_errors = report_templates.validate(story, payload or {})
+    if template_errors:
+        print('[错误] ' + '；'.join(template_errors), file=sys.stderr)
+        return 1
+    if report_templates.frozen(payload) == 'project':
+        story = report_templates.prepare_story(story, payload)
     # Model output may not override measured activity or publish unbound analysis.
     story.pop('activity', None)
     if 'analysis' in story:
@@ -510,7 +521,7 @@ def main():
     out_png = None if args.no_png else (args.png or default_png)
 
     uidx, avatars = {}, {}
-    if not args.no_avatar:
+    if not args.no_avatar and story.get('report_template') != 'project':
         try:
             from wechat_data import avatar as av
             names = collect_names(story)

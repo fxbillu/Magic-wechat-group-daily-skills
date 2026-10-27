@@ -41,9 +41,11 @@
 2. 执行 fetch.py daily。使用返回的冻结时间窗口和 archive 路径，仅为 pending 项写稿。
    不自行推算“昨天/今天”，不调用包外 next_range.py，不扩大为全部群或全部历史。
    failed 如实报告；nothing 不重做；empty/insufficient 不编造日报。
-3. 依据冻结素材，由当前模型按 writing-spec.md 写 story.json，绑定 username/date/source_revision。
+3. 按冻结归档的 report_template 由当前模型写 story.json：detailed 用 writing-spec.md，
+   project 用 report-templates.md；绑定 username/date/source_revision/report_template。
 4. 执行 check_story.py --archive 验证后，再用 render_daily.py 生成 HTML 和实际可用的 PNG。
-5. 执行 fetch.py daily --finish，确认本轮结果，再打开 HTML/阅读页核对。
+5. 执行 fetch.py daily --finish，确认本轮结果。后台仅更新文件、报告各群结果和可点击链接。
+   需要启动阅读服务时用 tools/desktop.py ensure，保持静默；不调用 launch、浏览器打开或文件打开。
    失败不推进截止点；重试复用原待出报窗口。不要手工改状态文件。
 
 保留原配置、已有日报及未成功的素材。截止时间后的消息进入下一份日报。
@@ -53,6 +55,10 @@
 
 写作细则见 [日报写作规范](writing-spec.md)。
 任务调用现有 Skill 流程，不需要另写一套采集或模型生成逻辑。
+
+## 更新已安装用户的任务
+
+更新 Skill 后，在原有每日任务详情中用上方完整提示词替换旧提示词并保存，再读回确认。旧任务里可能保存了“出报后打开 HTML／阅读页”的要求，文件更新不会自动替换它。核对旧版独立采集／重复出报任务并按前述规则处理，保留同一配置的一条主任务。此操作在用户 Windows 的 WorkBuddy 内完成，本次开发未直接修改该电脑上的任务。
 
 ## 首次试跑与日常使用
 

@@ -97,7 +97,7 @@ def open_reader(url):
         raise RuntimeError('READER_BROWSER_OPEN_FAILED') from None
 
 
-def launch(config_path, port=8765, *, open_window=True):
+def launch(config_path, port=8765, *, open_window=False):
     url = f'http://127.0.0.1:{port}/'
     reused = reader_available(url)
     pid = None
@@ -125,22 +125,23 @@ def launch(config_path, port=8765, *, open_window=True):
 def main():
     from wechat_data import settings
     parser = argparse.ArgumentParser(description='Magic reader and one reusable Windows desktop shortcut')
-    parser.add_argument('action', choices=('install', 'launch'))
+    parser.add_argument('action', choices=('install', 'launch', 'ensure'))
     parser.add_argument('--config', default=settings.CONFIG_PATH)
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--no-open', action='store_true', help='Start/reuse reader without opening a window')
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error('port must be between 1 and 65535')
+    open_window = args.action == 'launch' and not args.no_open
     try:
-        result = install_shortcut(args.config, args.port) if args.action == 'install' else launch(args.config, args.port, open_window=not args.no_open)
+        result = install_shortcut(args.config, args.port) if args.action == 'install' else launch(args.config, args.port, open_window=open_window)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         result = {'state': 'failed', 'code': str(error), 'next_action': 'open_reader_in_workbuddy'}
         message = '请在 WorkBuddy 中重新打开 Magic 群日报阅读台。'
         if str(error) == 'READER_BROWSER_OPEN_FAILED':
             result['url'] = f'http://127.0.0.1:{args.port}/'
             message = f'服务已就绪，但浏览器未能打开。请手动访问 {result["url"]}'
-        if sys.platform == 'win32' and not args.no_open:
+        if sys.platform == 'win32' and open_window:
             import ctypes
             ctypes.windll.user32.MessageBoxW(None, message, TITLE, 0x10)
     print(json.dumps(result, ensure_ascii=False))

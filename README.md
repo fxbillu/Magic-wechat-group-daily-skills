@@ -39,6 +39,8 @@ Magic 微信群日报是一个运行在 Windows WorkBuddy 上的 Skill。选择�
 
 *日报开场与总览，由正式渲染器生成；示例中的人员和群聊均为虚构。*
 
+开发分支新增按群选择的“详细版／项目工作版”，工作版重点整理总结、任务、责任人和期限；后台出报改为只通知链接。尚未进入已发布安装包，见 [模板与 Windows 验收说明](skills/wechat-group-daily/references/report-templates.md)。
+
 开发分支新增语音转写（尚未进入已发布安装包），可按需配置本地 Whisper：转写文字进入归档和日报，失败项标明并支持补跑；转完清理运行资源与临时音频，保留模型缓存。见 [语音转写说明](skills/wechat-group-daily/references/voice.md)。
 
 ## 安装与更新
