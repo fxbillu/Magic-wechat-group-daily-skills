@@ -122,6 +122,13 @@
 - Uploaded the 43-file clean Skill ZIP (228014 bytes), build receipt and SHA256SUMS. GitHub's returned ZIP digest matches local SHA-256 `d5555932fdf3339b4effb69192227844832be08b39f5e2dd9fdfec8e914b2a2e`.
 - Release was read back as prerelease=true, draft=false; source branch was pushed and clean. No Windows acceptance claimed. User's next step is importing the ZIP on Windows, generating a first daily report and configuring/checking the existing native task.
 
+## 2026-10-27 — Publish the repository and Windows onboarding README
+
+- User requested public access, a copyable Windows WorkBuddy installation/update prompt, and a refreshed GitHub homepage.
+- Changed repository visibility to public. Anonymous candidate ZIP download succeeded and matched the published hash.
+- Reworked README around the paper/charcoal/brick-red product style, adding a static SVG title, an unchanged synthetic UI screenshot, and the complete installation/update prompt. No runtime code or candidate ZIP changed.
+- Synchronized the existing candidate source and new README to the default main branch so Windows users and teammates can copy the instructions from the repository homepage.
+
 ## 2026-10-27 — Add Magic desktop entry and public repository branding
 
 - Request: create the Windows desktop shortcut during initialization, update the same shortcut on repeated runs, prefix the project with Magic, and make the repository public.
