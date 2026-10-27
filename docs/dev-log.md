@@ -295,3 +295,16 @@
 
 - Published v1.3.0-rc.8 from clean source 2f7de0d1af0096ff2884059da6c868d4c5ca0d9e. GitHub readback confirms non-draft prerelease, exact target/tag commit and all three ZIP/receipt/checksum assets uploaded. Main source and README are pushed.
 - Delivered artifact: 58 files, 295209 bytes, SHA-256 654a17906c28d30aa58d5d895a9c8fc50dad4d726b053db47bde2f622f53190e; GitHub digest matches local bytes. Source receipt is clean and extracted verification passed; actual ZIP recheck confirms full legal/provenance assets and approved opening implementation. Existing versions/assets, configurations and history preserved. This follow-up records publication evidence only.
+
+## 2026-10-27 — Clarify README and disclaimer wording
+
+- Request: retain the project name, describe the current data scope accurately, and keep disclosures concise without promising absolute safety.
+- Scope: README and packaged DISCLAIMER only, plus this log. Explain selected-group/time-range archives separately from shared database decryption that may retain other conversations locally. Keep local storage separate from possible cloud model processing; add brief file cleanup guidance, platform authorization/account limitations and the existing person-analysis boundary. Move Windows acceptance instructions out of the disclaimer and make their pending nature explicit.
+- Decision: retain MIT permissions and third-party notices; do not add learning-only or noncommercial restrictions, blanket liability exclusions, or account-safety guarantees. Runtime behavior, configuration and release version are unchanged.
+- Validation: static package/source/provenance checks passed; both edited documents' local links and shared disclosure wording checked; root and packaged MIT texts match; whitespace check passed. Documentation-only change, so no runtime suite or Windows acceptance rerun. No commit, push or replacement of published ZIPs; updated disclaimer will enter the next package build.
+
+## 2026-10-27 — Prepare rc.9 documentation and install-package update
+
+- Request: commit and push the reviewed wording, update the install package, and quickly check for other uncommitted changes. Initial status contained only README, DISCLAIMER and the prior log entry; no unrelated pending files were found.
+- Scope: publish a new rc.9 rather than replace immutable rc.8 assets. Align VERSION, Skill metadata, changelog and README download/verification links; retain runtime code, project name, configuration and history.
+- Validation: 21 existing package checks (20 pass, optional Pillow skip); 30 local document links, matching MIT texts, static source/provenance/privacy and whitespace checks passed. Build and verify the actual ZIP from committed clean source and compare the packaged disclaimer with the committed file. Record source revision, asset digest and GitHub readback after publication in the rc.9 verification record.
