@@ -290,3 +290,8 @@
 - Distribution: no new runtime dependency or package file; the explicit 58-file inventory retains MIT, disclaimer, notices, three upstream licenses and complete provenance. Commit reviewed source, build a clean-source versioned ZIP, verify delivered bytes, push without force and publish a new prerelease with receipt/checksum; preserve prior releases. Final source and GitHub asset readback are recorded in docs/verification/1.3.0-rc.8.md after upload.
 
 - Final visual boundary: actual browser screenshot of a one-sentence opening showed the floated initial touching the separator, which the long approved opening did not expose. Added a scoped flow-root to the opening paragraph; this contains its drop cap without altering the approved long text layout. Regenerated the actual preview and repeated the real API browser check after this CSS-only fix; no collection/API/semantic behavior changed. Final screenshots and static mechanical scan belong to the delivered candidate.
+
+## 2026-10-27 — Verify rc.8 GitHub and install-package delivery
+
+- Published v1.3.0-rc.8 from clean source 2f7de0d1af0096ff2884059da6c868d4c5ca0d9e. GitHub readback confirms non-draft prerelease, exact target/tag commit and all three ZIP/receipt/checksum assets uploaded. Main source and README are pushed.
+- Delivered artifact: 58 files, 295209 bytes, SHA-256 654a17906c28d30aa58d5d895a9c8fc50dad4d726b053db47bde2f622f53190e; GitHub digest matches local bytes. Source receipt is clean and extracted verification passed; actual ZIP recheck confirms full legal/provenance assets and approved opening implementation. Existing versions/assets, configurations and history preserved. This follow-up records publication evidence only.
