@@ -293,8 +293,9 @@ class MessageReader:
                 s = raw if isinstance(raw, str) else (bytes(raw).decode("utf-8", "replace") if raw else "")
                 text = content.strip_sender_prefix(s)
             elif base == 34:
-                if payload:
-                    txt = payload.decode("utf-8", "replace") if isinstance(payload, bytes) else str(payload)
+                if payload or isinstance(raw, str):
+                    value = payload if payload is not None else raw
+                    txt = value.decode("utf-8", "replace") if isinstance(value, bytes) else str(value)
                     v = content.parse_voicemsg(txt)
                     text = content.voice_label(v["duration_ms"])
                     voice = v
@@ -335,5 +336,7 @@ class MessageReader:
             st.types[tname] = st.types.get(tname, 0) + 1
             if m.base == 1:
                 st.text_count += 1
+                st.chars += len(m.text)
+            elif m.base == 34 and (m.voice or {}).get('transcription', {}).get('state') == 'transcribed':
                 st.chars += len(m.text)
         return st

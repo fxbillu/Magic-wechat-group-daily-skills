@@ -225,6 +225,11 @@ def render_html(story: dict, theme: str = "magazine", accent: str | None = None,
     content = analysis.with_evidence(story.get('analysis') or {}, payload or {})
     front = report_layout.render_front(story, content, story.get('activity') or {})
     analysis_html = report_layout.render_details(content)
+    from wechat_data.voice_jobs import summary as voice_summary
+    voices = voice_summary(payload or {})
+    if voices:
+        analysis_html = (f'<p class="source-note">语音转写：{voices["transcribed"]} 条成功，'
+                         f'{voices["failed"]} 条未转写。识别文字可能有误，请核对。</p>') + analysis_html
     if content.get('people'):
         hl_html = ''
 

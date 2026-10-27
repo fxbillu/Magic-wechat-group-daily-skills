@@ -21,7 +21,7 @@ JSON 的 `passed` 只代表指定的合成能力检查通过。必需检查失�
 | WorkBuddy、微信 Windows | 真实取数/模型成稿/本地任务所需 | **不探测**；恒为 `not_tested` | 用户拿到候选后试用首报，以本地任务模板创建/更新任务、查看详情并记录到点结果 |
 | Chromium / Edge / Chrome | PNG 可选；HTML 不依赖它 | 默认 `not_tested`；显式 `--browser` 才用隔离临时 profile 打开合成页并检查 PNG 签名/尺寸 | 真实日报 PNG 的文字/裁切效果；测试页面成功不代表日报截图正确 |
 | Pillow（导入名 PIL） | PNG 裁边、头像处理可选 | 创建 PNG、重新解码并核对尺寸 | 实际头像与日报裁边 |
-| pilk（当前真实解码路径） | 语音解码可选；`silk_to_wav` 实际只导入 pilk | 仅记录 distribution 版本；语音保持 `not_tested` | 授权本地音频的真实解码 |
+| pilk（当前真实解码路径） | 语音解码可选；`silk_to_wav` 实际只导入 pilk | 仅记录 distribution 版本；语音真实效果保持 `not_tested` | 授权本地音频的真实解码 |
 | ctranslate2 + faster-whisper + 本地模型 | 语音识别可选；`voice.py` | 仅版本盘点；不加载/下载模型 | 模型能加载、实际转写、资源释放 |
 | torch / opencc-python-reimplemented | 语音 GPU 资源回收/繁简转换可选 | 不承诺可用，opencc 仅版本盘点 | 需要时独立验收；CPU 文本主线不需安装 torch |
 
@@ -32,7 +32,7 @@ python -B scripts/tools/package.py --capabilities --node node
 python -B scripts/tools/package.py --capabilities --browser "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
 ```
 
-当前 `voice.status()`/错误文案把 silk-python 也列为可选解码器，但 `silk_to_wav()` 只调用 pilk；仅安装 silk-python 不能据此声称能解码，需后续责任方修正。ASR 在模型目录不存在时会选择 `base`，可能触发下载，所以本探测不会调用它。
+语音实际只调用 pilk，不再把 silk-python 算作可用解码器；模型缺失或不完整时明确报告，不自动下载。`voice status` 不加载模型；首次配置、补跑与资源清理见 [语音转写说明](voice.md)。本能力探测仍不调用真实 ASR。
 
 WAL 的存在与大小作为待 Windows 核实的诊断项，不作为尝试正常初始化/取数路径的额外前置条件；不要求先解决 WAL 才交付候选。首报、任务模板和反馈步骤见 [Windows 候选试用说明](windows-acceptance.md)。
 

@@ -30,6 +30,7 @@ RUNTIME_NAMES = {'config.json', 'all_keys.json', '.stamp.json', '.env', 'data', 
                  'collections', 'report-records', 'daily-state'}
 # These cannot be made optional by deleting a line from the release inventory.
 ESSENTIAL = {
+    'references/voice.md', 'scripts/lib/wechat_data/voice_jobs.py',
     'LICENSE.txt', 'NOTICE.md', 'DISCLAIMER.md', 'references/source-provenance.json',
     'licenses/wechatdaily-MIT.txt',
     'SKILL.md', 'VERSION', MANIFEST, 'references/writing-spec.md',

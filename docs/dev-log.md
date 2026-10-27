@@ -325,3 +325,25 @@
 - Request: check for remaining unnecessary detail, then update the GitHub README. Removed an unnecessary pause from the shared tagline and simplified the daily-task paragraph; the scheduling guide retains the detailed instructions for old tasks and scripts.
 - Scope: README, its existing SVG banner and this log only. Preserve the rc.9 version and release assets, legal disclosures, the Windows acceptance boundary and unrelated local files.
 - Validation: rechecked local paths and anchors, retained legal and developer text, SVG syntax and tagline, and whitespace; no runtime behavior changed or Windows acceptance rerun.
+
+
+## 2026-10-27 — Implement selected-group voice transcription workflow
+
+- Request/decisions: turn selected group voice messages into Whisper text before daily composition; continue after individual failures with visible missing counts and retry; preserve local model/dependencies while releasing runtime resources and temporary audio. Accepted scope: plans/2026-10-27-voice-transcription.md.
+- Scope: isolated codex/wechat-voice-transcription branch at 29cf961, preserving the concurrent installer work in the primary checkout. Added voice status/configure/retry, offline subprocess orchestration, selected message/media lookup, job-only media decryption, text cache and source-bound archive revision updates. Success text contributes to material and activity; report notices are measured rather than model-authored. Frozen-window and newer-edition state remain separate.
+- Lifecycle: per-batch model/native unload, bounded worker process with parent liveness monitoring, atomic per-message checkpoints, timeout recovery, current job cleanup and marked/dead-owner orphan recovery. No source WeChat/core database or model-cache deletion; task ownership is checked before recovery. New source/reference included in release inventory/provenance without changing release version or publishing assets.
+- Auxiliary checks completed before user scope adjustment: eight synthetic public CLI/HTTP/report/process scenarios passed; the already-running full public suite completed with 94 checks (93 pass, optional Pillow skip), plus the pre-existing non-failing SQLite ResourceWarning. Source packaging/privacy/provenance, syntax and 38 local links passed. No real audio, model weights, native Windows behavior or real GPU unloading was exercised.
+- User steering: stop expanding/repeating Mac runtime tests; finish scripts and clear Skill orchestration, and hand actual acceptance to Windows. No more local runtime suites after that instruction. Added a Windows walkthrough for real voice accuracy, sources, process/resource return, files and retry, without requiring developer tests.
+- Follow-up: source-only Standards/Spec review and final commit; actual Windows dependencies/model/CNG/media layout, voice accuracy, CPU/GPU release and interruption/file-lock behavior remain on-device acceptance.
+
+
+## 2026-10-27 — Static review corrections for Windows voice handoff
+
+- Standards review reported two P1 lifecycle/collection-contract defects; Spec review reported the same temporary-root defect and a P2 unknown-message-type rewrite. Source-only review; no new runtime tests after the user's Windows-first instruction.
+- Corrected worker TMP/TEMP/TMPDIR and tempfile root to the owned job directory, so abrupt native-process exit leaves audio inside the parent's recovery boundary. Changed retry to replace only failed voice dictionaries, preserving every unrelated source field; removed the lossy generic Message reconstruction helper.
+- Added a dedicated archive text-revision path preserving collection timestamps/coverage, latest failed attempts, collect cursors and report links while updating text/revision/index. Invalid dates are rejected, and unverifiable legacy material requests normal recollection rather than fabricated coverage.
+- These post-steering corrections require Windows recheck; earlier synthetic pass counts describe the pre-review implementation, not runtime validation of these final fixes. Reviewer source follow-up and final static checks are recorded below.
+
+- Source follow-up closed the original Standards/Spec findings and identified an interrupted revision gap. Added a durable pending voice-revision marker with idempotent recovery of collection revision/index/daily pending state; both retry (including no remaining failed audio) and the relevant daily edition can resume it. Existing collection failures and newer-edition cursors remain untouched. No runtime rerun; Windows must check this final recovery path.
+
+- Final source-only follow-up: Standards 2 findings closed; Spec 2 initial plus 1 interrupted-revision finding closed, no remaining issues within the reviewed scope. Parsed changed Python source without executing it. Built a clean internal Windows preview from 1972e45: 60 files, SHA-256 55a3ed2057a5fe4d8276ce39f62338bd58b819fa74875a73602fba0ba21e5b8d; copied ZIP/receipt/checksum into the primary checkout's ignored dist/voice-windows-preview for handoff. No GitHub release or main-branch update. Details: verification/voice-windows-handoff.md.

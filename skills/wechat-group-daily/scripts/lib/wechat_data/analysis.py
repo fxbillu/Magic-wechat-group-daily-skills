@@ -60,7 +60,8 @@ def activity(payload):
         identity = message.get('sender_id') or 'name:' + (message.get('sender') or '未知')
         names[identity] = message.get('sender') or '未知'
         people[identity] += 1
-        if message.get('type') == 'text':
+        if (message.get('type') == 'text' or (message.get('type') == 'voice' and
+                (message.get('voice') or {}).get('transcription', {}).get('state') == 'transcribed')):
             chars[identity] += len(message.get('text') or '')
         try:
             hours[datetime.fromisoformat(message.get('time', '')).hour] += 1
@@ -75,7 +76,7 @@ def activity(payload):
                               'share': round(count / total, 4) if total else 0}
                              for identity, count in sorted(people.items(), key=lambda item: (-item[1], item[0]))],
             'by_hour': [{'hour': hour, 'messages': hours[hour]} for hour in range(24)],
-            'note': '仅统计本群本次归档消息；发言量不代表贡献或工作完成。'}
+            'note': '仅统计本群本次归档消息，文字量含成功语音转写；发言量不代表贡献或工作完成。'}
 
 
 def material(payload, *, person='', topic='', before=8, after=12, limit=200):
