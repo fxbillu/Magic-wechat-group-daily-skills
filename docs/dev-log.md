@@ -233,6 +233,12 @@
 - Validation: [rc.6 evidence](verification/1.3.0-rc.6.md). Full public suite 82 checks (81 pass, optional Pillow skip); final package suite 19 (18 pass, same skip). New browser analysis test and four existing real-API browser checks pass, including standalone 390px output. Added rolling-window and missing-resource cases; static release inventory, syntax, references, whitespace and visual scan pass. No true Windows/model/PNG/scheduled-run acceptance is inferred from synthetic checks.
 - Publication plan within authorization: commit the reviewed source and sanitized evidence, push main without force, build/recheck a fresh versioned ZIP with source receipt, then publish a prerelease preserving prior versions. Record GitHub readback and checksum after upload; no real conversations or private configuration enter the commit or ZIP.
 
+## 2026-10-27 — Publish the integrated rc.6 candidate
+
+- Published [v1.3.0-rc.6](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.6) from source `90669a9bbd88244c052ebfb4445ca9b5e1e98fe4` after pushing main without force. No old release assets were replaced.
+- Build/recheck: 53-file ZIP, 283146 bytes, clean-source receipt and extracted verification passed. SHA-256 `4cfc4ab0f59ee6d1e0e6293ee64d21c07da104ec73b7645882aac902323b7ad3` matches GitHub's returned asset digest. Release readback is published, non-draft and prerelease, with ZIP, build receipt and checksum attachments uploaded.
+- Completed scope includes the approved production overview layout, contextual search, optional group cards, sourced semantic analysis and measured activity, on top of the preserved rc.5 rolling workflow. Windows/model/PNG/scheduled-run outcomes remain on-device checks. This follow-up changes only publication evidence.
+
 ## 2026-10-27 — Converge to one scheduled daily edition
 
 - Request: one daily summary per configured group, user-selected time (21:00 suggested), continuation from the last successfully handled cutoff, safe retries and preserved history. User explicitly requested GitHub source update only; no new release ZIP or automation.
