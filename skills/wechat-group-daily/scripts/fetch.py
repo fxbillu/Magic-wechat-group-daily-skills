@@ -263,6 +263,8 @@ def cmd_archive(args):
                     continue
                 with MessageReader(directory) as reader:
                     msgs = reader.fetch(chat, start, end)
+                    from wechat_data import voice_jobs
+                    voice_jobs.enrich(cfg, chat.username, msgs)
                     stats = reader.summarize(msgs)
                 path = ar.save(cfg, date, chat, msgs, stats, start, end)
                 saved += 1
@@ -293,6 +295,25 @@ def cmd_daily(args):
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 1 if any(item['state'] == 'failed' for item in result['groups']) else 0
+
+
+def cmd_voice(args):
+    import sqlite3
+    from wechat_data import settings, voice_jobs
+    try:
+        cfg = settings.require()
+        if args.voice_action == 'status':
+            result = voice_jobs.status(cfg)
+        elif args.voice_action == 'configure':
+            result = voice_jobs.configure(cfg, args.model_dir, args.timeout)
+        else:
+            result = voice_jobs.retry_archive(cfg, args.chat, args.date)
+    except (ValueError, OSError, sqlite3.Error) as error:
+        known = str(error) if isinstance(error, ValueError) and str(error).startswith('VOICE_') else 'VOICE_OPERATION_FAILED'
+        print(json.dumps({'state': 'failed', 'code': known}, ensure_ascii=False))
+        return 1
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
 
 
 def cmd_status(args):
@@ -478,6 +499,19 @@ def main():
     action.add_argument("--finish", action="store_true", help="只确认已登记的日报，不再采集新窗口")
     action.add_argument("--reopen", action="store_true", help="重新采集同日尚未出报的空/素材不足窗口；已出报不会重发")
     p.set_defaults(func=cmd_daily)
+
+    p = sub.add_parser('voice', help='补跑冻结归档中未成功转写的语音')
+    actions = p.add_subparsers(dest='voice_action', required=True)
+    state = actions.add_parser('status', help='只读检查本地模型与依赖，不加载或下载')
+    state.set_defaults(func=cmd_voice)
+    configure = actions.add_parser('configure', help='保存已有本地模型路径，不安装或下载')
+    configure.add_argument('--model-dir', required=True)
+    configure.add_argument('--timeout', type=float, default=300, help='单批超时秒数，1..3600')
+    configure.set_defaults(func=cmd_voice)
+    retry = actions.add_parser('retry', help='只重试失败语音，保留原窗口和旧日报')
+    retry.add_argument('--chat', required=True, help='已关注群的稳定 ID')
+    retry.add_argument('--date', required=True, help='归档日期 YYYY-MM-DD')
+    retry.set_defaults(func=cmd_voice)
 
     p = sub.add_parser("status", help="查看配置与归档状态")
     p.set_defaults(func=cmd_status)

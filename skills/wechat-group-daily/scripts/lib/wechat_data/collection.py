@@ -103,6 +103,10 @@ def decorate(cfg, entry):
             state = 'stale'
     elif payload and successful and not enough:
         state = 'insufficient'
+    from .voice_jobs import summary
+    voices = summary(payload or {})
+    if voices:
+        entry['voice_transcription'] = voices
     entry['report'] = {'state': state, 'source_revision': record.get('source_revision'),
                        'composed_at': record.get('composed_at') or entry.get('composed_at'),
                        **links, 'reason_code': 'MATERIAL_INSUFFICIENT' if state == 'insufficient' else None}

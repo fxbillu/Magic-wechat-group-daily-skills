@@ -8,7 +8,7 @@ import re
 import sqlite3
 from zoneinfo import ZoneInfo
 
-from . import archive, collection, db, guard, material, settings
+from . import archive, collection, db, guard, material, settings, voice_jobs
 from .chat import ChatResolver
 from .messages import CoverageError, MessageReader
 
@@ -197,6 +197,7 @@ def prepare(cfg, until=None, finish=False, reopen=False):
                     chat = ChatResolver(directory).get(username)
                     with MessageReader(directory) as reader:
                         messages = reader.fetch(chat, start, end)
+                        voice_jobs.enrich(cfg, username, messages)
                         stats = reader.summarize(messages)
                     archive.save(cfg, date, chat, messages, stats, start, end, period_mode='rolling')
                 payload = archive.load(cfg, date, username)
@@ -214,3 +215,17 @@ def prepare(cfg, until=None, finish=False, reopen=False):
                 results.append({'username': username, 'state': 'failed',
                                 'code': str(error) if isinstance(error, DailyError) else 'DAILY_SOURCE_UNREADABLE'})
     return {'mode': 'once_daily', 'cutoff': end.isoformat(), 'groups': results}
+
+
+def revise_material(cfg, date, username, payload):
+    """Caller holds the daily lock; leave newer editions and cursors untouched."""
+    if payload.get('period_mode') != 'rolling':
+        return
+    path = Path(settings.data_dir(cfg)) / 'daily-state' / (hashlib.sha256(username.encode()).hexdigest() + '.json')
+    state = load_state(path)
+    pending = state.get('pending')
+    if (pending and pending['date'] == date) or (not pending and state.get('completed_date') == date):
+        state['pending'] = {'date': date, 'start': payload['range']['start'], 'end': payload['range']['end'],
+                            'revision': payload['collection']['revision'],
+                            'archive': archive.archive_path(cfg, date, username)}
+        archive._atomic_write(str(path), state)

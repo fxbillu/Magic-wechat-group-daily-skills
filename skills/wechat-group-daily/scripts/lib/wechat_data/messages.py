@@ -35,6 +35,19 @@ class Message:
     voice: dict | None = None
     source_shard: str = ""
 
+    @classmethod
+    def from_dict(cls, value, tzinfo=None):
+        base = next((number for number, name in content.BASE_TYPES.items()
+                     if name == value.get('type')), 0)
+        stamp = datetime.fromisoformat(value['time'])
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=tzinfo)
+        return cls(local_id=value['local_id'], ts=stamp,
+                   sender=value['sender'], sender_username=value.get('sender_id', ''),
+                   base=base, sub=value.get('sub_type', 0), text=value['text'],
+                   app=value.get('app'), voice=value.get('voice'),
+                   source_shard=value.get('source_shard', ''))
+
     @property
     def ts_str(self) -> str:
         return self.ts.strftime("%Y-%m-%d %H:%M:%S")
@@ -293,8 +306,9 @@ class MessageReader:
                 s = raw if isinstance(raw, str) else (bytes(raw).decode("utf-8", "replace") if raw else "")
                 text = content.strip_sender_prefix(s)
             elif base == 34:
-                if payload:
-                    txt = payload.decode("utf-8", "replace") if isinstance(payload, bytes) else str(payload)
+                if payload or isinstance(raw, str):
+                    value = payload if payload is not None else raw
+                    txt = value.decode("utf-8", "replace") if isinstance(value, bytes) else str(value)
                     v = content.parse_voicemsg(txt)
                     text = content.voice_label(v["duration_ms"])
                     voice = v
@@ -335,5 +349,7 @@ class MessageReader:
             st.types[tname] = st.types.get(tname, 0) + 1
             if m.base == 1:
                 st.text_count += 1
+                st.chars += len(m.text)
+            elif m.base == 34 and (m.voice or {}).get('transcription', {}).get('state') == 'transcribed':
                 st.chars += len(m.text)
         return st

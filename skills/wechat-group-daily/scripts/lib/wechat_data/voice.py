@@ -1,57 +1,13 @@
-"""语音转写：SILK → WAV → 文本
+"""Local SILK → WAV → Whisper primitives.
 
-## 数据来源
-
-微信 4.x 的语音：
-
-- 消息表里 type 34 的 `message_content` 是 zstd 压缩的 `<voicemsg>` XML，
-  只有时长和格式，**没有任何转写文本**
-- 真正的音频在 `media_0.db` 的 `VoiceInfo.voice_data` 里，
-  格式是 SILK v3（blob 头为 `\\x02#!SILK_V3`）
-
-## 链路
-
-    VoiceInfo.silk  →  SILK 解码  →  PCM/WAV  →  Whisper  →  文本
-
-## 依赖
-
-| 环节 | 包 | 说明 |
-|---|---|---|
-| SILK 解码 | `pilk` 或 `silk-python` | C 扩展，需能装包 |
-| ASR | `ctranslate2` + `faster-whisper` | 模型可用本地缓存 |
-
-模型目录默认取 HuggingFace 缓存里的
-`models--Systran--faster-whisper-base`（已缓存约 142MB），可用参数覆盖。
-
-## 资源释放（重点）
-
-Whisper 模型加载后常驻内存/显存，批量转写完必须显式释放，否则
-进程会一直占着几百 MB 到几 GB。这里用两条保障：
-
-1. `WhisperTranscriber` 支持 with 语法，退出即释放
-2. `transcribe_batch()` 内部用 try/finally 保证释放，
-   并且每条转写独立 try，单条失败不影响整体
-
-释放动作：置空模型引用 → `gc.collect()` → 若 torch 在且用了 CUDA，
-再 `torch.cuda.empty_cache()`。
-
-## 用法
-
-    from wechat_data import voice
-
-    # 单条
-    silk = voice.load_silk_by_local_id(12345)
-    print(voice.transcribe_one(silk))
-
-    # 批量（自动开关模型，转完释放）
-    results = voice.transcribe_batch([b1, b2, b3])
-
-    # 长驻场景自己控制生命周期
-    with voice.WhisperTranscriber() as t:
-        for b in blobs:
-            print(t.transcribe(b))
+Daily/archive orchestration and process isolation live in voice_jobs.py.
+Decoder: pilk; ASR: faster-whisper/CTranslate2 with complete local model files.
+No automatic download. Use voice configure/status/retry through fetch.py.
+The transcriber releases its native CTranslate2 model in close(); job process
+exit is the final native-resource boundary. Model files remain reusable.
 """
 import gc
+import importlib.util
 import os
 import sqlite3
 import tempfile
@@ -203,7 +159,7 @@ def silk_to_wav(silk: bytes, sample_rate: int = 24000) -> bytes:
         import pilk
     except ImportError as e:
         raise NotImplementedError(
-            "缺少 SILK 解码器：pip install pilk（或 silk-python）"
+            "缺少 SILK 解码器：请按授权配置 pilk"
         ) from e
 
     with tempfile.TemporaryDirectory() as td:
@@ -220,24 +176,20 @@ def silk_to_wav(silk: bytes, sample_rate: int = 24000) -> bytes:
 
 # ---------------------------------------------------------------- Whisper
 
-def _release_model(model) -> None:
-    """释放模型占用的内存/显存"""
-    try:
-        del model
-    except Exception:
-        pass
-    gc.collect()
-    try:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            try:
-                torch.cuda.ipc_collect()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
+def model_path(directory):
+    """Require complete local model assets; never resolve a remote model name."""
+    if not isinstance(directory, str) or not directory:
+        raise ValueError('VOICE_MODEL_UNAVAILABLE')
+    directory = os.path.abspath(os.path.expanduser(directory))
+    required = ('model.bin', 'config.json', 'tokenizer.json')
+    candidates = [directory]
+    snapshots = os.path.join(directory, 'snapshots')
+    if os.path.isdir(snapshots):
+        candidates.extend(os.path.join(snapshots, name) for name in sorted(os.listdir(snapshots)))
+    for candidate in candidates:
+        if all(os.path.isfile(os.path.join(candidate, name)) for name in required):
+            return candidate
+    raise ValueError('VOICE_MODEL_UNAVAILABLE')
 
 class WhisperTranscriber:
     """faster-whisper 转写器，支持上下文管理，退出时释放模型"""
@@ -259,9 +211,9 @@ class WhisperTranscriber:
             raise NotImplementedError(
                 "缺少 ASR 引擎：pip install ctranslate2 faster-whisper"
             ) from e
-        src = self.model_dir if os.path.isdir(self.model_dir) else "base"
-        self._model = WhisperModel(src, device=self.device,
-                                   compute_type=self.compute_type)
+        source = model_path(self.model_dir)
+        self._model = WhisperModel(source, device=self.device,
+                                   compute_type=self.compute_type, local_files_only=True)
 
     def transcribe(self, silk: bytes) -> str:
         """单条 SILK → 文本"""
@@ -279,8 +231,14 @@ class WhisperTranscriber:
 
     def close(self):
         """显式释放模型"""
-        _release_model(self._model)
-        self._model = None
+        model, self._model = self._model, None
+        try:
+            native = getattr(model, 'model', None)
+            if native is not None and callable(getattr(native, 'unload_model', None)):
+                native.unload_model()
+        finally:
+            del model
+            gc.collect()
 
     def __enter__(self):
         self._ensure()
@@ -343,25 +301,19 @@ def transcribe_batch(blobs, progress=None, **kwargs) -> list:
 
 def status() -> dict:
     deps = {}
-    for name in ("pilk", "silk", "faster_whisper", "ctranslate2", "torch", "opencc"):
+    for name in ('pilk', 'faster_whisper', 'ctranslate2', 'opencc'):
         try:
-            __import__(name)
-            deps[name] = True
-        except ImportError:
+            deps[name] = importlib.util.find_spec(name) is not None
+        except (ImportError, ValueError):
             deps[name] = False
-    model_ok = os.path.isdir(DEFAULT_MODEL_DIR)
-    silk_ready = bool(deps.get("pilk") or deps.get("silk"))
-    asr_ready = bool(deps.get("faster_whisper") and deps.get("ctranslate2"))
-    return {
-        "deps": deps,
-        "model_cached": model_ok,
-        "model_dir": DEFAULT_MODEL_DIR,
-        "silk_ready": silk_ready,
-        "asr_ready": asr_ready,
-        "ready": silk_ready and asr_ready,
-        "missing": [k for k, v in deps.items()
-                    if not v and k in ("pilk", "silk", "faster_whisper", "ctranslate2")],
-    }
+    try:
+        model_path(DEFAULT_MODEL_DIR)
+        model_ok = True
+    except (OSError, ValueError):
+        model_ok = False
+    return {'deps': deps, 'model_cached': model_ok, 'model_dir': DEFAULT_MODEL_DIR,
+            'silk_ready': deps['pilk'], 'asr_ready': deps['faster_whisper'] and deps['ctranslate2'],
+            'ready': deps['pilk'] and deps['faster_whisper'] and deps['ctranslate2'] and model_ok}
 
 
 if __name__ == "__main__":

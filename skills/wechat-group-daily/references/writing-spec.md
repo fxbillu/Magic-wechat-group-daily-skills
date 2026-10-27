@@ -20,7 +20,7 @@ python fetch.py export --chat "<群名>" --date <YYYY-MM-DD> --format text
 素材用归档才和 `stats` 对得上。
 
 归档里每条消息有 `message_id / source_shard / local_id / time / sender / sender_id / text / type / sub_type / app`。
-`type` 不是 text 的（image / sticker / video / app / voice），`text` 里已经有 `[图片]`、`[链接] 标题` 这类占位，照用。
+`type` 不是 text 的消息可能有 `[图片]`、`[链接] 标题` 这类占位。语音的 `voice.transcription.state=transcribed` 时，`text` 是可用的识别文字；按原消息身份和发言人引用，并说明是语音转写，不能冒充人工核对的原话。失败语音保留占位，不编造内容；见 [语音转写](voice.md)。
 
 **必须读完全部消息再动笔。** 群里一天通常只有一两千字，漏读就会漏事。
 
