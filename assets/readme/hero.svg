@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
-  <title id="title">微信群日报 · 把关注群，读成日报</title>
+  <title id="title">微信群日报 · 把群里的讨论整理成可以回看的日报</title>
   <desc id="desc">沿用本地阅读器的暖纸色、炭黑与砖红。聊天气泡汇入每群独立的日报，再按日期回看；右侧为概念示意，实际界面见 README 截图。</desc>
   <rect width="1200" height="360" rx="18" fill="#F6F3EB"/>
   <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
     <text x="56" y="62" font-size="25" font-weight="600" fill="#B33A2B">WINDOWS · WORKBUDDY SKILL</text>
     <path d="M56 87H1144" stroke="#D6CEBE"/>
     <text x="56" y="175" font-size="78" font-weight="700" fill="#22201C">微信群日报</text>
-    <text x="58" y="229" font-size="34" fill="#3A362E">把关注群，读成日报。</text>
+    <text x="58" y="229" font-size="34" fill="#3A362E">把群里的讨论整理成可以回看的日报。</text>
     <text x="59" y="291" font-size="25" fill="#66615A">每群独立成篇　/　按日期与群回看</text>
     <g id="chat-to-daily" transform="translate(779 116)">
       <path d="M0 15h86v40H21L5 68V55H0Z" fill="#E8E3D7"/>

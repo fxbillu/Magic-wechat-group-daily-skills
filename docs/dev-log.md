@@ -313,3 +313,15 @@
 
 - Pushed documentation/version commit dc75ff9adf687b32bc8cfaebcf400ee4d95ad55e to main and published v1.3.0-rc.9 as a non-draft prerelease at that exact commit. Remote README and DISCLAIMER bytes match; all three release assets are uploaded.
 - Clean-source ZIP: 58 files, 295389 bytes, SHA-256 e25a7990669c4ec79d20ef78a8f3b16edd4a45fe9860b133cf44c6a408778ceb. GitHub digest and independently downloaded ZIP match; downloaded disclaimer equals committed source. Details are in verification/1.3.0-rc.9.md. Prior assets remain unchanged; this follow-up records delivery only.
+
+## 2026-10-27 — Rewrite README for first-time readers
+
+- Request: revise the complete README's wording and reading order while keeping licensing and development information precise.
+- Scope: reorganized the product introduction, capabilities, installation, first report, scheduling, data handling and verification status; synchronized the tagline in the README's existing SVG banner. Preserved the disclaimer, license and developer sections verbatim, including third-party attribution and terms. The README still distinguishes selected-group archives from shared database decryption, possible cloud model processing, and development checks from outstanding Windows acceptance.
+- Validation: checked 29 local links and image references, including Markdown heading targets; compared the disclaimer, license and developer sections against HEAD; parsed the SVG and checked its tagline; rendered and visually inspected the updated 1200 × 360 banner; `git diff --check` passed. Documentation and banner text only, so no runtime suite or Windows acceptance was rerun.
+
+## 2026-10-27 — Final README review before GitHub update
+
+- Request: check for remaining unnecessary detail, then update the GitHub README. Removed an unnecessary pause from the shared tagline and simplified the daily-task paragraph; the scheduling guide retains the detailed instructions for old tasks and scripts.
+- Scope: README, its existing SVG banner and this log only. Preserve the rc.9 version and release assets, legal disclosures, the Windows acceptance boundary and unrelated local files.
+- Validation: rechecked local paths and anchors, retained legal and developer text, SVG syntax and tagline, and whitespace; no runtime behavior changed or Windows acceptance rerun.
