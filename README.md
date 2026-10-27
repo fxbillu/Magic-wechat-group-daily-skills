@@ -8,11 +8,11 @@
 
 选择多个微信群，由你 Windows 电脑上的 WorkBuddy 每天整理成独立日报；按日期看多群，按群看历史，也能组合搜索。配置、密钥和归档文件保存在本机的包外目录。
 
-**Windows · WorkBuddy · 1.3.0-rc.3 源码测试候选**
+**Windows · WorkBuddy · 1.3.0-rc.4 Windows 测试候选**
 
-[复制安装提示词](#安装与更新) · [下载候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.2) · [Windows 试用说明](skills/wechat-group-daily/references/windows-acceptance.md)
+[复制安装提示词](#安装与更新) · [下载候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.4) · [Windows 试用说明](skills/wechat-group-daily/references/windows-acceptance.md)
 
-本次解密与跨盘修复通过 Git 安装/更新获取；上面的已发布 ZIP 仍为 rc.2，不含这些修复。
+安装包已包含核心库解密、跨盘目录、中断回收、桌面图标和初始化状态修复；已有安装更新时保留原配置与历史日报。
 
 ## 为什么做这个项目
 
@@ -50,7 +50,7 @@ https://github.com/fxbillu/Magic-wechat-group-daily-skills
 按照仓库说明加载微信群日报 Skill，带我完成初始化、生成首份日报，并配置每日任务。已有安装则更新，保留原配置和历史。
 ```
 
-也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.2) 导入 WorkBuddy。
+也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.4) 导入 WorkBuddy。
 
 ## 桌面快捷方式
 
@@ -72,7 +72,7 @@ Windows 初始化保存配置时，会创建带报纸图标的 **Magic 群日报
 
 ## 当前验证范围
 
-开发侧已完成必要修复与前后端联调。当前源码的 68 项公共检查中，67 项通过、1 项可选 Pillow 检查跳过；真实 Python API 到页面的关键流程通过合成输入验证。
+开发侧已完成必要修复与前后端联调。前一轮的 68 项公共检查中，67 项通过、1 项可选 Pillow 检查跳过；真实 Python API 到页面的关键流程通过合成输入验证。
 
 rc.3 默认跳过不需要的 FTS 库，按核心库结果判断解密成功，并支持跨盘目录和中断临时文件回收。数据库层仍按共享消息分片解密，归档仅保存所选群的指定日期；旧版无归属临时文件和历史日报不会自动删除。
 
@@ -85,6 +85,8 @@ rc.3 默认跳过不需要的 FTS 库，按核心库结果判断解密成功，�
 项目按现状提供，不对兼容性、持续可用性、消息覆盖完整性、日报准确性或定时任务准点执行作出保证。微信、WorkBuddy、模型服务或运行环境的变化都可能影响使用。AI 总结可能遗漏、误解或错误归因；引用、署名、项目状态及重要结论应核对原始消息，并向相关人员确认。
 
 请自行评估数据读取、解密、模型处理和内容分享带来的隐私、保密、账号及数据安全风险，备份重要数据，并遵守适用法律法规和平台协议。本说明不替代必要的数据授权，也不改变适用法律规定的各方责任。第三方组件遵循各自许可证；再分发、二次开发或商业使用前，请核对[第三方来源与许可](skills/wechat-group-daily/references/third-party.md)及相关授权范围。
+
+本次 rc.4 仅追加状态残留修复，相关状态与恢复检查通过。同事在 Windows 安装后，以真实取数、打开 HTML/PNG 和历史回看确认可用，无需先安装 pytest 或运行开发测试。
 
 ## 开发与文档
 

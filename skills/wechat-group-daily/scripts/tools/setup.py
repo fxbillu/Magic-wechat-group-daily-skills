@@ -149,7 +149,9 @@ def main():
         settings.external_path(settings.CONFIG_PATH)
         if args.status:
             progress = archive.collection.read_record(progress_path())
-            emit(stage=progress.get('stage', 'not_started'), code=progress.get('last_error'), resume_token=progress.get('token'))
+            stage = progress.get('stage', 'not_started')
+            emit(stage=stage, code=None if stage == 'configuration_saved' else progress.get('last_error'),
+                 resume_token=progress.get('token'))
             return 0
         old = settings.load() if settings.exists() else None
         if args.resume:
@@ -160,6 +162,9 @@ def main():
             if digest_config() != expected_hash:
                 raise SetupFailure('CONFIGURATION_CHANGED', 'review_configuration_before_resuming')
             if session.get('stage') == 'configuration_saved':
+                if 'last_error' in session:
+                    session.pop('last_error')
+                    archive._atomic_write(progress_path(), session)
                 emit(stage='configuration_saved', resume_token=session['token'], first_report='not_observed',
                      schedule='not_observed', desktop_shortcut=desktop.install_shortcut(settings.CONFIG_PATH))
                 return 0
@@ -262,6 +267,7 @@ def main():
         finally:
             os.remove(lock_path)
         session.update(stage='configuration_saved', committed_hash=digest_config())
+        session.pop('last_error', None)
         archive._atomic_write(progress_path(), session)
         emit(stage='configuration_saved', resume_token=session['token'], first_report='not_observed',
              schedule='not_observed', desktop_shortcut=desktop.install_shortcut(settings.CONFIG_PATH),

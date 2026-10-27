@@ -1,6 +1,6 @@
 ---
 name: wechat-group-daily
-version: 1.3.0-rc.3
+version: 1.3.0-rc.4
 description: Magic 微信群日报：在本人 Windows 电脑安装、更新或使用本地微信群日报。首次确认账号、包外目录与关注群；按群按日成稿并回看，更新时复用原配置和历史。
 ---
 
