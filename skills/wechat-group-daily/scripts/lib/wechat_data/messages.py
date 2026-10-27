@@ -35,19 +35,6 @@ class Message:
     voice: dict | None = None
     source_shard: str = ""
 
-    @classmethod
-    def from_dict(cls, value, tzinfo=None):
-        base = next((number for number, name in content.BASE_TYPES.items()
-                     if name == value.get('type')), 0)
-        stamp = datetime.fromisoformat(value['time'])
-        if stamp.tzinfo is None:
-            stamp = stamp.replace(tzinfo=tzinfo)
-        return cls(local_id=value['local_id'], ts=stamp,
-                   sender=value['sender'], sender_username=value.get('sender_id', ''),
-                   base=base, sub=value.get('sub_type', 0), text=value['text'],
-                   app=value.get('app'), voice=value.get('voice'),
-                   source_shard=value.get('source_shard', ''))
-
     @property
     def ts_str(self) -> str:
         return self.ts.strftime("%Y-%m-%d %H:%M:%S")

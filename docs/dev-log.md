@@ -335,3 +335,11 @@
 - Auxiliary checks completed before user scope adjustment: eight synthetic public CLI/HTTP/report/process scenarios passed; the already-running full public suite completed with 94 checks (93 pass, optional Pillow skip), plus the pre-existing non-failing SQLite ResourceWarning. Source packaging/privacy/provenance, syntax and 38 local links passed. No real audio, model weights, native Windows behavior or real GPU unloading was exercised.
 - User steering: stop expanding/repeating Mac runtime tests; finish scripts and clear Skill orchestration, and hand actual acceptance to Windows. No more local runtime suites after that instruction. Added a Windows walkthrough for real voice accuracy, sources, process/resource return, files and retry, without requiring developer tests.
 - Follow-up: source-only Standards/Spec review and final commit; actual Windows dependencies/model/CNG/media layout, voice accuracy, CPU/GPU release and interruption/file-lock behavior remain on-device acceptance.
+
+
+## 2026-10-27 — Static review corrections for Windows voice handoff
+
+- Standards review reported two P1 lifecycle/collection-contract defects; Spec review reported the same temporary-root defect and a P2 unknown-message-type rewrite. Source-only review; no new runtime tests after the user's Windows-first instruction.
+- Corrected worker TMP/TEMP/TMPDIR and tempfile root to the owned job directory, so abrupt native-process exit leaves audio inside the parent's recovery boundary. Changed retry to replace only failed voice dictionaries, preserving every unrelated source field; removed the lossy generic Message reconstruction helper.
+- Added a dedicated archive text-revision path preserving collection timestamps/coverage, latest failed attempts, collect cursors and report links while updating text/revision/index. Invalid dates are rejected, and unverifiable legacy material requests normal recollection rather than fabricated coverage.
+- These post-steering corrections require Windows recheck; earlier synthetic pass counts describe the pre-review implementation, not runtime validation of these final fixes. Reviewer source follow-up and final static checks are recorded below.

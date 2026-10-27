@@ -99,6 +99,26 @@ def save(cfg: dict, date: str, chat, msgs, stats, start, end, *, period_mode=Non
     return path
 
 
+def revise_material(cfg: dict, date: str, payload: dict) -> None:
+    """Save a text revision without inventing a new collection attempt."""
+    username = payload['chat']['username']
+    old_revision = payload['collection']['revision']
+    new_revision = collection.revision(payload)
+    payload['collection'] = dict(payload['collection'], revision=new_revision)
+    path = archive_path(cfg, date, username)
+    _atomic_write(path, payload)
+    attempt_path = collection.record_path(cfg, 'collections', date, username)
+    attempt = collection.read_record(attempt_path)
+    latest = attempt.get('collection') or {}
+    if latest.get('state') != 'failed' and latest.get('revision') == old_revision:
+        attempt['collection'] = dict(latest, revision=new_revision)
+        _atomic_write(attempt_path, attempt)
+    # Keep observed_at, coverage, latest failed attempt, collect cursor and report links.
+    rel = os.path.relpath(path, settings.data_dir(cfg)).replace('\\', '/')
+    db.save_archive(cfg, date, payload, rel)
+    db.dump_json(cfg)
+
+
 def sources_of_day(cfg, date):
     sources = []
     directory = day_dir(cfg, date)

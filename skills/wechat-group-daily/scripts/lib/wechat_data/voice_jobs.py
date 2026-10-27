@@ -210,7 +210,7 @@ def _run(cfg, chat, tasks, options):
                    'model_dir': options['model_dir'], 'timeout_seconds': timeout, 'device': options.get('device', 'cpu'),
                    'compute_type': options.get('compute_type', 'int8')}
         (folder / 'request.json').write_text(json.dumps(request), encoding='utf-8')
-        env = dict(os.environ)
+        env = dict(os.environ, TMP=str(folder), TEMP=str(folder), TMPDIR=str(folder))
         lib = str(Path(__file__).resolve().parents[1])
         env['PYTHONPATH'] = lib + (os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
         try:
@@ -304,6 +304,7 @@ def _watch_worker(parent_pid, timeout, stopped):
 def worker_main():
     """Serialize ASR workers and expose ownership for safe crash recovery."""
     folder = Path(sys.argv[1])
+    tempfile.tempdir = str(folder)
     request = json.loads((folder / 'request.json').read_text(encoding='utf-8'))
     owner = json.loads((folder / 'owner.json').read_text(encoding='utf-8'))
     owner['worker_pid'] = os.getpid()
@@ -369,27 +370,49 @@ def _transcribe_request(request, folder):
 
 
 def retry_archive(cfg, chat, date):
-    """Revise failed speech within a frozen edition; never recollect its window."""
+    """Revise only failed voice dictionaries, preserving all other source fields."""
     from . import daily
-    from .chat import Chat
-    from .messages import Message, MessageReader
+    from .messages import Message
+    try:
+        if datetime.strptime(date, '%Y-%m-%d').date().isoformat() != date:
+            raise ValueError()
+    except (TypeError, ValueError):
+        raise ValueError('VOICE_DATE_INVALID') from None
     if chat not in {item['username'] for item in settings.active_chats(cfg)}:
         raise ValueError('VOICE_GROUP_NOT_FOLLOWED')
     with daily.run_lock(Path(settings.data_dir(cfg)) / 'daily-state'):
         payload = archive.load(cfg, date, chat)
         if not payload:
             raise ValueError('VOICE_ARCHIVE_NOT_FOUND')
-        zone = datetime.fromisoformat(payload['range']['start']).tzinfo
-        messages = [Message.from_dict(item, zone) for item in payload['messages']]
-        enrich(cfg, chat, messages)
-        changed = [message.to_dict() for message in messages] != payload['messages']
-        if changed:
-            start, end = (datetime.fromisoformat(payload['range'][key]) for key in ('start', 'end'))
-            target = Chat(chat, payload['chat']['name'], kind=payload['chat']['kind'])
-            archive.save(cfg, date, target, messages, MessageReader.summarize(messages), start, end,
-                         period_mode=payload.get('period_mode'))
-            payload = archive.load(cfg, date, chat)
-            daily.revise_material(cfg, date, chat, payload)
+        selected = [(index, item) for index, item in enumerate(payload['messages'])
+                    if item.get('type') == 'voice' and
+                    (item.get('voice') or {}).get('transcription', {}).get('state') != 'transcribed']
+        changed = False
+        if selected:
+            if not isinstance(payload.get('collection'), dict):
+                raise ValueError('VOICE_ARCHIVE_UNVERIFIED')
+            zone = datetime.fromisoformat(payload['range']['start']).tzinfo
+            messages = []
+            for _, item in selected:
+                stamp = datetime.fromisoformat(item['time'])
+                if stamp.tzinfo is None:
+                    stamp = stamp.replace(tzinfo=zone)
+                messages.append(Message(local_id=item['local_id'], ts=stamp, sender=item['sender'],
+                    sender_username=item.get('sender_id', ''), base=34, sub=item.get('sub_type', 0),
+                    text=item['text'], voice=item.get('voice'), source_shard=item.get('source_shard', '')))
+            enrich(cfg, chat, messages)
+            added_chars = 0
+            for (index, original), message in zip(selected, messages):
+                updated = dict(original, text=message.text, voice=message.voice)
+                if updated != original:
+                    payload['messages'][index] = updated
+                    changed = True
+                    if (message.voice or {}).get('transcription', {}).get('state') == 'transcribed':
+                        added_chars += len(message.text)
+            if changed:
+                payload['stats']['chars'] += added_chars
+                archive.revise_material(cfg, date, payload)
+                daily.revise_material(cfg, date, chat, payload)
         return {'state': 'updated' if changed else 'unchanged', 'date': date,
-                'revision': payload['collection']['revision'],
+                'revision': (payload.get('collection') or {}).get('revision'),
                 'archive': archive.archive_path(cfg, date, chat), 'voice': summary(payload)}
