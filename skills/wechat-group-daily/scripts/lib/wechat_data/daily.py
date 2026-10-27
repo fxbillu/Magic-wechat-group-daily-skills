@@ -208,7 +208,8 @@ def prepare(cfg, until=None, finish=False, reopen=False):
                         messages = reader.fetch(chat, start, end)
                         voice_jobs.enrich(cfg, username, messages)
                         stats = reader.summarize(messages)
-                    archive.save(cfg, date, chat, messages, stats, start, end, period_mode='rolling')
+                    archive.save(cfg, date, chat, messages, stats, start, end,
+                                 period_mode='rolling', refresh_template=reopening)
                 payload = archive.load(cfg, date, username)
                 state['pending'] = {'date': date, 'start': start.isoformat(), 'end': end.isoformat(),
                                     'revision': payload['collection']['revision'],

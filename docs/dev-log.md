@@ -355,3 +355,8 @@
 - Decisions: detailed remains default; changes apply to future collected archives; project permits short work notices and shows missing owner/deadline as pending confirmation. Completed feedback remains a group claim. Background updates files and notifies links; explicit shortcut launch opens the reader. Existing Windows saved task must be edited in place. No image pipeline, GUI replacement, or concurrent installer changes.
 - Verification: AST parsing of 12 changed/new Python files, `node --check` for app.js, 62-file manifest/provenance coverage, changed Markdown path resolution and `git diff --check` passed. Per user instruction no runtime/model/Mac acceptance tests in this change; real Windows background scheduling, content quality and reading behavior remain unverified.
 - Acceptance and source contract: `docs/plans/2026-10-27-work-reports.md`, `skills/wechat-group-daily/references/report-templates.md`.
+
+### Source review follow-up
+
+- Standards axis: no actionable documented-standard violations or baseline smells. Spec axis found two gaps: ordinary re-collection could replace a historical frozen template, and mixed attachments lacked a coverage notice.
+- Fixes: ordinary archive replacement retains its original template; only the existing explicit same-day empty/insufficient `daily --reopen` path refreshes it. Project HTML now also identifies unread attachments/cards, alongside image and failed voice notices. Recheck pending; no runtime tests run.

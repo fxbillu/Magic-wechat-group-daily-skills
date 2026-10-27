@@ -135,6 +135,10 @@ def render_html(story, payload):
     images = sum(message.get('type') == 'image' for message in payload.get('messages', []))
     if images:
         notice += f'<p class="notice">本时段含 {images} 条图片消息，当前未完成图片理解；本报告未概括图片内容。</p>'
+    attachments = sum(message.get('type') not in ('text', 'voice', 'image', 'system', 'revoke', 'call')
+                      for message in payload.get('messages', []))
+    if attachments:
+        notice += f'<p class="notice">另有 {attachments} 条附件／卡片等非文字消息，其内容未读取，未纳入工作总结。</p>'
     span = payload.get('range') or {}
     css = '''body{margin:0;background:#f3f1ed;color:#292823;font:16px/1.65 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1120px;margin:auto;padding:36px 28px}header{border-bottom:2px solid #383b36;padding-bottom:20px}h1{font-size:30px;margin:10px 0}h2{font-size:21px;margin:0 0 16px}small,.meta,.notice{color:#686b63}.meta{font-size:14px}section{background:#fff;border:1px solid #dedfd8;border-radius:8px;margin:24px 0;padding:24px}article+article{border-top:1px solid #eee;padding-top:12px}p{margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #ddd;padding:12px 8px;overflow-wrap:anywhere}th:first-child{width:24%}th:last-child{width:18%}details{font-size:13px}summary{cursor:pointer;color:#53604b}details ul{padding-left:18px}footer{font-size:13px;color:#686b63}@media(max-width:700px){main{padding:20px 14px}h1{font-size:25px}section{padding:18px}table,tbody,tr,td{display:block}thead{display:none}tr{border-bottom:2px solid #ddd;padding:8px 0}td{border:0;padding:5px 0}td:before{content:attr(data-label) "：";font-weight:600}}'''
     return (f'<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
