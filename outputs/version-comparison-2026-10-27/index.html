@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Magic 群日报 · 新旧对比</title>
+  <style>
+    :root{--paper:#f6f3eb;--raised:#fffdf8;--sunken:#f0ece1;--ink:#22201c;--muted:#66615a;--rule:#d6cebe;--brick:#b33a2b;--green:#1f5c43}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}button,a{-webkit-tap-highlight-color:transparent}button{font:inherit}button:focus-visible,a:focus-visible{outline:2px solid var(--brick);outline-offset:3px}a{color:inherit;text-underline-offset:4px}::selection{background:#e9d1ba;color:var(--ink)}
+    main{max-width:1580px;margin:auto;padding:24px 32px 32px}.intro{display:flex;align-items:start;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--rule)}h1{font-size:28px;letter-spacing:-.02em;line-height:1.3;margin:0 0 10px}.intro p{margin:0;color:var(--muted);max-width:70ch}.status{white-space:nowrap;font-size:12px;color:var(--brick);border:1px solid var(--rule);padding:6px 12px;border-radius:20px;margin-top:3px}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin:20px 0 18px;flex-wrap:wrap}.tabs,.layout{display:flex;gap:6px;flex-wrap:wrap}.tabs button,.layout button{background:transparent;border:1px solid transparent;border-radius:6px;padding:8px 13px;color:var(--muted);cursor:pointer;min-height:40px}.tabs button[aria-pressed=true]{color:var(--ink);background:var(--raised);border-color:var(--rule);font-weight:600}.layout{padding-left:14px;border-left:1px solid var(--rule)}.layout button{font-size:13px;padding:6px 10px}.layout button[aria-pressed=true]{background:var(--ink);color:var(--paper)}button:hover{background:var(--sunken)}
+    .explain{padding:0 0 18px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}.explain strong{font-size:16px;font-weight:600}.explain p{margin:4px 0 0;color:var(--muted);font-size:13px}.sample{align-self:end;color:var(--muted);font-size:12px}.comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}.comparison[data-layout=before],.comparison[data-layout=after]{grid-template-columns:minmax(0,1fr);max-width:1080px;margin:auto}.comparison[data-layout=before] .edition.after,.comparison[data-layout=after] .edition.before{display:none}.edition{min-width:0;border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--raised)}.edition-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--rule)}.edition-head h2{font-size:15px;margin:0;line-height:1.5}.edition-head p{margin:2px 0 0;font-size:12px;color:var(--muted)}.edition-head a{font-size:12px;white-space:nowrap;color:var(--muted)}.after .edition-head h2{color:var(--brick)}.stage{height:900px;position:relative;overflow:hidden;background:var(--paper)}iframe{border:0;width:100%;height:100%;background:var(--paper);display:block}.stage.scaled iframe{position:absolute;top:0;left:50%;transform-origin:top left}.foot{font-size:12px;color:var(--muted);margin-top:16px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}.offline{padding:12px;background:var(--sunken);margin:15px 0;font-size:13px}[hidden]{display:none!important}
+    @media(max-width:900px){main{padding:20px 16px}.intro{gap:12px}h1{font-size:23px}.status{font-size:11px;padding:5px 9px}.toolbar{align-items:start}.layout{border-left:0;padding-left:0}.comparison{grid-template-columns:minmax(0,1fr)}.stage{height:800px}.sample{width:100%}}
+    @media(prefers-reduced-motion:no-preference){.tabs button,.layout button{transition:background .15s ease,color .15s ease}}
+  </style>
+</head>
+<body><main>
+  <header class="intro"><div><h1>Magic 群日报 · 新旧对比</h1><p>用同一段讨论，看看阅读页和日报成稿会有什么变化。</p></div><span class="status">预览 · 尚未发布</span></header>
+  <div class="toolbar">
+    <nav class="tabs" aria-label="对比内容">
+      <button type="button" data-scene="reader" aria-pressed="true">阅读页</button>
+      <button type="button" data-scene="extras" aria-pressed="false">总览前置</button>
+      <button type="button" data-scene="report" aria-pressed="false">完整故事线</button>
+      <button type="button" data-scene="search" aria-pressed="false">搜索前后文</button>
+    </nav>
+    <div class="layout" role="group" aria-label="预览方式">
+      <button type="button" data-layout="split" aria-pressed="true">左右对比</button>
+      <button type="button" data-layout="after" aria-pressed="false">只看新版</button>
+      <button type="button" data-layout="before" aria-pressed="false">只看旧版</button>
+    </div>
+  </div>
+  <div class="explain"><div><strong id="difference">同一份日报，增加可展开的分析。</strong><p id="detail">新版可查看活跃统计、话题、人物动态和原文金句，再展开来源核对。</p></div><span class="sample">36 条消息 · 4 人 · 2026-10-26 · 全部为虚构示例</span></div>
+  <p id="offline" class="offline" hidden>当前展示静态日报对比；启动本地预览后，还能体验真实阅读页和搜索。</p>
+  <div class="comparison" data-layout="split">
+    <section class="edition before"><div class="edition-head"><div><h2>原有版本</h2><p id="before-note">原来的日报阅读方式</p></div><a id="before-open" href="pages/before-report.html" target="_blank" rel="noopener">单独打开</a></div><div class="stage"><iframe id="before" title="原有版本预览" src="pages/before-report.html"></iframe></div></section>
+    <section class="edition after"><div class="edition-head"><div><h2>待确认新版</h2><p id="after-note">增加统计与有来源的分析</p></div><a id="after-open" href="pages/after-report.html" target="_blank" rel="noopener">单独打开</a></div><div class="stage"><iframe id="after" title="待确认新版预览" src="pages/after-report.html"></iframe></div></section>
+  </div>
+  <footer class="foot"><span>全部为虚构示例。数据与正文沿用实际程序产物，新版布局是本轮待确认的预览。</span><span>确认效果后，再更新版本。</span></footer>
+</main>
+<script>
+  let config=null,scene='reader',layout='split';
+  const info={
+    reader:{title:'阅读页先给总览，细节按需展开。',detail:'消息规模和活跃时段在前，主要话题与下一步紧随其后；完整活跃榜和来源明细折叠查看。',before:'原来的日报阅读入口',after:'今日总览 → 主要话题 → 完整日报'},
+    extras:{title:'先看今天的全貌，再决定往下读什么。',detail:'活跃统计、主要话题、待确认事项一起前置；后面保留完整故事线、人物动态与原文金句。',before:'先读开场与故事，统计在末尾',after:'先看总览和活跃分布，再读完整经过'},
+    report:{title:'完整经过继续保留，总览不重复堆在结尾。',detail:'直接比较故事线；话题总览已移至开头，人物动态与原文金句保留在后面。',before:'原有故事线、今日高光和问答',after:'故事线 → 人物动态 → 原文金句'},
+    search:{title:'不只找到一句话，还能读到前因后果。',detail:'同搜“交接异常”：新版默认展开第一条命中的前后文，保留其他人的回复，也可以按人物筛选。',before:'命中消息，点开当日日报',after:'命中消息 + 同群同日的前后回应'}
+  };
+  function resize(){document.querySelectorAll('.stage').forEach(stage=>{const frame=stage.querySelector('iframe');const scaled=['extras','report'].includes(scene)&&!(frame.id==='after'&&stage.clientWidth<600);stage.classList.toggle('scaled',scaled);if(scaled){const nativeWidth=920;const scale=Math.min(stage.clientWidth/nativeWidth,1);frame.style.width=nativeWidth+'px';frame.style.height=(stage.clientHeight/scale)+'px';frame.style.left=Math.max(0,(stage.clientWidth-nativeWidth)/2)+'px';frame.style.transform='scale('+scale+')';}else{frame.style.width='100%';frame.style.height='100%';frame.style.left='';frame.style.transform='';}});}
+  function render(){if(!config&&['reader','search'].includes(scene))scene='extras';const row=info[scene];document.querySelector('#difference').textContent=row.title;document.querySelector('#detail').textContent=row.detail;document.querySelector('#before-note').textContent=row.before;document.querySelector('#after-note').textContent=row.after;
+    document.querySelectorAll('[data-scene]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scene===scene)));document.querySelectorAll('button[data-layout]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.layout===layout)));document.querySelector('.comparison').dataset.layout=layout;
+    for(const version of ['before','after']){let url='pages/'+version+'-report.html';if(scene==='report')url+=version==='before'?'#review-story':'#story';if(scene==='reader')url=config[version]+'/c/'+encodeURIComponent(config.group)+'/'+config.day+(version==='after'?'?review=analysis':'');if(scene==='search')url=config[version]+'/search?'+new URLSearchParams({q:'交接异常',chat:config.group,from:config.day,to:config.day,...(version==='after'?{review:'context'}:{})});document.getElementById(version).src=url;document.getElementById(version+'-open').href=url;}
+    resize();history.replaceState(null,'','#'+scene+'/'+layout);
+  }
+  document.querySelectorAll('[data-scene]').forEach(button=>button.addEventListener('click',()=>{scene=button.dataset.scene;render();}));document.querySelectorAll('button[data-layout]').forEach(button=>button.addEventListener('click',()=>{layout=button.dataset.layout;render();}));new ResizeObserver(resize).observe(document.querySelector('.comparison'));
+  document.querySelectorAll('iframe').forEach(frame=>frame.addEventListener('load',()=>{if(['extras','report'].includes(scene))window.scrollTo(0,0);}));
+  window.addEventListener('hashchange',()=>{const parts=location.hash.slice(1).split('/');if(info[parts[0]])scene=parts[0];if(['split','before','after'].includes(parts[1]))layout=parts[1];render();});
+  async function init(){try{const response=await fetch('preview.json');if(!response.ok)throw new Error();config=await response.json();}catch{document.querySelector('#offline').hidden=false;document.querySelectorAll('[data-scene=reader],[data-scene=search]').forEach(b=>{b.disabled=true;});}const parts=location.hash.slice(1).split('/');if(info[parts[0]])scene=parts[0];if(['split','before','after'].includes(parts[1]))layout=parts[1];render();}init();
+</script></body></html>

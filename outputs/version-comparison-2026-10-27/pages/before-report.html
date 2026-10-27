@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>演示门店试点群 · 群日报</title>
+<style>:root{
+    --bg:#E8E2D5;--paper:#F7F3EA;--ink:#1E1B16;
+    --body-text:#2E2820;--muted:#8A8175;--accent:#B33A2B;
+    --rule:#D9D0BF;--card:#FFFDF8;--quote-bg:rgba(179,58,43,.045);--faint:#B8AE9C;
+    --font-head:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",serif;--font-body:"Source Han Serif SC","Noto Serif CJK SC","Songti SC","STSong","SimSun",serif;--font-mono:"Helvetica Neue",Arial,sans-serif;
+    --title-size:46px;--theme-size:27px;--brand-size:30px;
+    --pad:64px;--avatar-radius:50%;--card-radius:0;
+    --mast-rule:2px solid var(--ink);--dropcap:block;
+    }
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased}
+.page{width:900px;margin:0 auto;background:var(--paper);padding:var(--pad) 72px 56px;position:relative}
+.masthead{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:var(--mast-rule);padding-bottom:14px}
+.brand{font-size:var(--brand-size);letter-spacing:.22em;font-weight:600;font-family:var(--font-head)}
+.vol{font-size:12px;letter-spacing:.14em;color:var(--muted);font-family:var(--font-mono)}
+.lead{padding:52px 0 44px;border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.28em;color:var(--accent);text-transform:uppercase;margin-bottom:22px}
+.title{font-size:var(--title-size);line-height:1.32;font-weight:600;letter-spacing:.01em;margin-bottom:30px;font-family:var(--font-head);color:var(--ink)}
+.opening{font-size:16px;line-height:2;color:var(--body-text);text-align:justify}
+.opening::first-letter{float:left;font-size:62px;line-height:.86;padding:6px 12px 0 0;color:var(--accent);font-weight:600;display:var(--dropcap)}
+.timeline{padding-top:16px}
+.node{padding:46px 0 40px;border-bottom:1px solid var(--rule);position:relative}
+.node:last-child{border-bottom:none}
+.no{font-family:var(--font-mono);font-size:13px;color:var(--accent);letter-spacing:.16em;margin-bottom:10px}
+.node-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+.time{font-family:var(--font-mono);font-size:13px;color:var(--muted);letter-spacing:.08em}
+.badge{font-size:11px;letter-spacing:.1em;padding:3px 10px;border:1px solid var(--accent);color:var(--accent);font-family:var(--font-mono)}
+.theme{font-size:var(--theme-size);font-weight:600;line-height:1.45;margin-bottom:20px;font-family:var(--font-head);color:var(--ink)}
+.cast{display:flex;gap:10px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+.cast-label{font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;color:var(--muted);margin-right:4px}
+.avatar{width:32px;height:32px;border-radius:var(--avatar-radius);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-family:var(--font-mono);overflow:hidden;flex:0 0 auto}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.cast-name{font-size:12px;color:var(--muted);margin-right:8px}
+.story{font-size:15px;line-height:2.05;color:var(--body-text);text-align:justify}
+.quote{margin:24px 0 0;padding:16px 22px;border-left:3px solid var(--accent);background:var(--quote-bg);font-size:15px;line-height:1.95;color:var(--body-text)}
+.quote .who{display:block;margin-top:10px;font-size:11px;letter-spacing:.1em;color:var(--muted);font-family:var(--font-mono)}
+.output{margin-top:20px;font-size:12.5px;color:var(--muted);padding-top:14px;border-top:1px dashed var(--rule)}
+.output b{color:var(--accent);font-weight:600;letter-spacing:.08em}
+.sec-title{font-size:13px;letter-spacing:.26em;color:var(--accent);font-family:var(--font-mono);padding:50px 0 8px;border-bottom:var(--mast-rule);margin-bottom:30px}
+.hl-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.hl{background:var(--card);padding:22px 24px;border:1px solid var(--rule);border-radius:var(--card-radius)}
+.hl-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.hl-name{font-size:16px;font-weight:600;font-family:var(--font-head);color:var(--ink)}
+.hl-tag{font-size:11px;color:var(--accent);letter-spacing:.08em;display:block;margin-top:2px;font-family:var(--font-mono)}
+.hl-desc{font-size:13px;line-height:1.9;color:var(--body-text)}
+.sop{background:var(--card);border:1px solid var(--rule);padding:24px 26px;margin-bottom:16px;border-radius:var(--card-radius)}
+.sop-title{font-size:17px;font-weight:600;margin-bottom:6px;font-family:var(--font-head);color:var(--ink)}
+.sop-meta{font-size:11px;color:var(--muted);margin-bottom:14px;letter-spacing:.06em;font-family:var(--font-mono)}
+.sop ol{padding-left:20px}
+.sop li{font-size:13.5px;line-height:2;color:var(--body-text)}
+.qa{margin-bottom:20px}
+.qa-q{font-size:15px;font-weight:600;margin-bottom:8px;font-family:var(--font-head);color:var(--ink)}
+.qa-a{font-size:13.5px;line-height:1.95;color:var(--body-text);padding-left:14px;border-left:2px solid var(--rule);margin-bottom:8px}
+.stats{margin-top:56px;padding-top:26px;border-top:var(--mast-rule);display:flex;justify-content:space-around;text-align:center}
+.stat-num{font-size:34px;font-weight:600;color:var(--accent);font-family:var(--font-mono)}
+.stat-label{font-size:11px;letter-spacing:.14em;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
+.footer{margin-top:44px;padding:34px 0 12px;border-top:1px solid var(--rule);text-align:center}
+.footer-text{font-size:20px;line-height:1.9;color:var(--ink);font-family:var(--font-head)}
+.footer-attr{font-size:11px;color:var(--muted);margin-top:14px;letter-spacing:.1em;font-family:var(--font-mono)}
+.produced{margin-top:40px;font-size:10px;color:var(--faint);letter-spacing:.2em;text-align:center;font-family:var(--font-mono)}
+</style></head>
+<body><div class="page">
+  <div class="masthead">
+    <div class="brand">群日报</div>
+    <div class="vol">Vol. 2026-10-26 &nbsp;·&nbsp; 09:05 → 17:55</div>
+  </div>
+  <section class="lead">
+    <div class="eyebrow">Today&#x27;s Story · 今日故事</div>
+    <h1 class="title">先缩小试点，<br>再把日报读完整</h1>
+    <p class="opening">上午九点，演示门店试点群没有急着增加场景，而是先把范围收窄到前台交接和收档异常。许宁指出，下一班真正需要的，是问题的当前处理和接下来找谁。下午，讨论转向采集失败与零消息的区别，以及旧日报应该怎样保留。到了傍晚，大家把明天的读报反馈和各自分工说清楚：先看一份日报能否帮助值班同事找到待跟进事项，再决定下一轮更新。今天达成的是范围、阅读方式和验收口径的共识，真实门店反馈仍待收集。</p>
+  </section>
+  <section class="timeline" id="review-story">
+    <article class="node">
+      <div class="no">01</div>
+      <div class="node-head">
+        <span class="time">09:05</span>
+        <span class="badge">定范围的人</span>
+      </div>
+      <h2 class="theme">先做好两件事，不把试点铺开</h2>
+      <div class="cast"><span class="cast-label">CAST</span><div class="avatar" style="background:#B33A2B">小</div><span class="cast-name">小林</span><div class="avatar" style="background:#7A6A4F">许</div><span class="cast-name">许宁</span><div class="avatar" style="background:#4E5D52">周</div><span class="cast-name">周然</span></div>
+      <p class="story">九点零五分，产品先把试点收窄到一间演示门店的两个场景：前台交接和收档异常。许宁随后解释，上一班只写“已交接”，并不能让下一班知道问题当前怎样、接下来该找谁。产品据此明确，条目需要保留问题、当前处理和下一步联系人，暂不加入销售预测和自动排班。陈启提出复用现有归档与阅读页，并希望一起保留关键词前后的解释。上午最后确认的是两个场景的范围和完整回应的阅读方式；群里准备的仍是脱敏演示材料，尚不能写成真实门店已经试用。</p>
+      <div class="quote">“先把每天能不能稳定看完一份日报跑通，再谈扩到更多门店。”<span class="who">— 周然</span></div>
+      <div class="output"><b>产出</b> · 范围共识：一间演示门店、两个场景；保留问题的后续回应。</div>
+    </article>
+    <article class="node">
+      <div class="no">02</div>
+      <div class="node-head">
+        <span class="time">14:10</span>
+        <span class="badge">守住来源的人</span>
+      </div>
+      <h2 class="theme">采集失败，不能写成没有消息</h2>
+      <div class="cast"><span class="cast-label">CAST</span><div class="avatar" style="background:#7A6A4F">小</div><span class="cast-name">小陈</span><div class="avatar" style="background:#4E5D52">小</div><span class="cast-name">小林</span><div class="avatar" style="background:#8C6239">许</div><span class="cast-name">许宁</span></div>
+      <p class="story">下午两点十分，陈启提出一个容易误读的状态：取数失败时，页面不能显示当天没有消息。产品把“采集成功但零消息”和“没有取到数据”分开，许宁则追问，重试失败以后旧日报是否还能打开。陈启给出的处理是保留已有旧稿，同时提示本次失败，素材发生变化以后再标记待更新。讨论随后延伸到搜索：关键词周围的回复要一起保留，避免漏掉后来的纠正。大家还明确，群里说过“处理了”并不等于实际验收完成，合成消息检查也不能代替 Windows 真机验证。</p>
+      <div class="quote">“采集失败不是零消息，这两个状态必须分开。”<span class="who">— 小陈</span></div>
+      <div class="output"><b>产出</b> · 阅读口径：失败、零消息、旧稿待更新分别表达。</div>
+    </article>
+    <article class="node">
+      <div class="no">03</div>
+      <div class="node-head">
+        <span class="time">17:05</span>
+        <span class="badge">接住下一步的人</span>
+      </div>
+      <h2 class="theme">先收一份读报反馈，再决定更新</h2>
+      <div class="cast"><span class="cast-label">CAST</span><div class="avatar" style="background:#4E5D52">许</div><span class="cast-name">许宁</span><div class="avatar" style="background:#8C6239">小</div><span class="cast-name">小林</span><div class="avatar" style="background:#5B4B6E">小</div><span class="cast-name">小陈</span><div class="avatar" style="background:#A05C3C">周</div><span class="cast-name">周然</span></div>
+      <p class="story">傍晚五点零五分，许宁提出安排一名值班同事阅读演示日报，看能否在两分钟内找到仍需跟进的事。产品把反馈问题限定为漏了什么、哪句难懂、读完会做什么，并提出增加话题、人物和原文金句栏目。陈启负责整理候选入口，许宁收集读报反馈，产品汇总后决定下一轮改动。周然提醒，发言量只能说明讨论分布，实际进展还要向负责人确认。当天交付的是可阅读的演示与差异说明，读报反馈、真实兼容、模型准确性和到点执行都没有被提前记作完成。</p>
+      <div class="quote">“发言量用来看讨论分布，实际进展仍然找负责人确认。”<span class="who">— 周然</span></div>
+      <div class="output"><b>产出</b> · 待验证：明天读报反馈；技术侧继续核对真实环境。</div>
+    </article></section>
+  <div class="sec-title">今日高光</div><div class="hl-grid">
+        <div class="hl">
+          <div class="hl-top">
+            <div class="avatar" style="background:#B33A2B">小</div>
+            <div><div class="hl-name">小林</div>
+                 <span class="hl-tag">把范围收住</span></div>
+          </div>
+          <div class="hl-desc">明确两个试点场景，并把下一轮反馈问题与分工说清楚。</div>
+        </div>
+        <div class="hl">
+          <div class="hl-top">
+            <div class="avatar" style="background:#7A6A4F">小</div>
+            <div><div class="hl-name">小陈</div>
+                 <span class="hl-tag">把状态说准</span></div>
+          </div>
+          <div class="hl-desc">区分采集失败与零消息，提出保留旧稿和原文上下文。</div>
+        </div>
+        <div class="hl">
+          <div class="hl-top">
+            <div class="avatar" style="background:#4E5D52">许</div>
+            <div><div class="hl-name">许宁</div>
+                 <span class="hl-tag">带来门店视角</span></div>
+          </div>
+          <div class="hl-desc">指出交接信息缺口，并准备安排值班同事读报反馈。</div>
+        </div>
+        <div class="hl">
+          <div class="hl-top">
+            <div class="avatar" style="background:#8C6239">周</div>
+            <div><div class="hl-name">周然</div>
+                 <span class="hl-tag">守住验收口径</span></div>
+          </div>
+          <div class="hl-desc">提醒先跑通阅读，并把讨论与实际结果分别确认。</div>
+        </div></div>
+
+  <div class="sec-title">问答沉淀</div><div class="qa"><div class="qa-q">Q：这次采集失败以后，已有日报还能看吗？</div><div class="qa-a"><b>小陈</b>：已有旧稿继续可读，并明确提示本次失败；素材变化以后再标记待更新。</div></div>
+  <div id="review-end"></div><div class="stats"><div><div class="stat-num">36</div><div class="stat-label">条消息</div></div><div><div class="stat-num">4</div><div class="stat-label">人发言</div></div><div><div class="stat-num">1375</div><div class="stat-label">字讨论</div></div></div>
+  <div class="footer"><div class="footer-text">“今天先交付可阅读的演示和差异说明。等看完并确认效果，再更新。”</div><div class="footer-attr">周然 · 17:55</div></div>
+  <div class="produced">PRODUCED · 演示门店试点群 · 本地生成，未上传</div>
+</div></body></html>

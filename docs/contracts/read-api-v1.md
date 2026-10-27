@@ -164,6 +164,20 @@ T1 已为日期与群条目增加 `collection/report`，T3 再以可加兼容方
 
 ## 并行开发的验证依据
 
+### 2026-10-27 分析与上下文增量
+
+现有 API 和索引 schema 保持兼容，新增能力复用冻结归档，不从 GET 写配置、迁移索引或调用模型。
+
+- `/api/search` 的每条结果增加 `context_key`，为该条索引内容绑定的检索锚点，不使用不稳定的 SQLite rowid。`sender` 接受显示名片段或精确稳定用户 ID；其他筛选及返回字段不变。
+- `GET /api/context?date&username&key&before&after`：稳定群 ID、出报日期和有效搜索锚点必填；默认 `before=8/after=12`，各自夹在 0—30。只读取同一份归档，返回 `messages`（含 `source_id/is_match`）、`anchor_id/source_revision/range/scope`（自然日归档为 `group_day`，接续归档为 `archive_range`）、`before_available/after_available/has_earlier/has_later` 及最新 `collection`。上下文不受搜索关键词、人物和类型筛选影响。归档不存在返回 404；来源变化或有歧义返回 409 `CONTEXT_CHANGED`，不猜测命中。旧成功归档仍可读，并保留最新采集失败状态。
+- `GET /api/analysis?date&username`：返回该群当日 `activity`、素材 `source_revision`、最新 `collection` 和可选已保存分析。`activity` 按本次归档的原消息实算，按稳定成员 ID 区分同名人物；`participants` 提供 `name/sender_id/messages/text_chars/share`，`by_hour` 按归档时间的小时分布。不是实时微信全量统计或工作贡献评价。
+- `analysis.state` 为 `pending/ready/stale/invalid`。只读取已有日报 `.story.json`，核对群、日期、素材版本及分析来源后，才返回 `overview/topics/followups/people/quotes` 与各项 `evidence` 原消息。无新版字段为 pending，素材不符为 stale，结构或来源不合格为 invalid；后两者不输出语义结论。状态不是对模型语义真实性的自动证明。
+- 两个新接口沿用未配置／索引不可用的 503 规则，归档缺失不冒充成功零消息。它们不会自动生成分析；宿主仍按既有写稿、验稿和渲染流程更新日报。
+
+短总述 `overview` 为可选对象，其他四项为数组；短总述与待确认事项同样校验 `source_ids`，不使用预览中的手写样例。缺失时为空对象或数组，不推断自动任务状态。
+
+Schema 与宿主分析字段详见 [Skill 分析说明](../../skills/wechat-group-daily/references/analysis.md)。
+
 - 当前可运行：`python3 -B -m unittest discover -s tests -p 'test_*.py' -v`，使用正式源码副本、隔离包外配置和真实 HTTP；夹具不依赖 `legacy-import/`。
 - 合成归档在 `tests/fixtures/sample-archive.json`。原导入指纹在 `tests/fixtures/import-baseline.json`，仅用于来源追溯，不是新版代码必须保持旧哈希的断言。
 - 前端可以按本契约准备未来状态夹具，但不能把夹具通过当真实后端通过。跨层票据关闭前须连接真实 Python API。

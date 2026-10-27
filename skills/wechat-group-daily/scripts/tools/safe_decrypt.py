@@ -349,7 +349,9 @@ def run_decryption(args, out_dir, workspace):
             continue
         if args.only and rel.replace("\\", "/") != args.only.replace("\\", "/"):
             continue
-        if not args.only and not args.include_optional and not guard.is_core(rel.replace('\\', '/')):
+        normalized = rel.replace('\\', '/')
+        if (not args.only and not args.include_optional and not guard.is_core(normalized)
+                and normalized != 'contact/contact_fts.db'):
             continue
         targets.append((rel, val))
 

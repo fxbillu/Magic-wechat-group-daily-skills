@@ -135,6 +135,9 @@ def main() -> int:
     source_revision = (arch.get('collection') or {}).get('revision')
     if source_revision and story.get('source_revision') != source_revision:
         problems.append('稿件 source_revision 与冻结素材版本不一致')
+    if 'analysis' in story:
+        from wechat_data import analysis
+        problems.extend(analysis.validate(story['analysis'], arch))
 
     # Match every literal quotation on one source row, including optional source identity.
     def check_quote(quote, label):
@@ -201,7 +204,8 @@ def main() -> int:
     # 人物卡上限不能超过当天说话的人数，否则就成了「全员标签册」这个反模式
     people = len({str(m.get("sender", "")) for m in msgs if m.get("sender")})
     hl_min = min(HIGHLIGHT_MIN, people)
-    if not (hl_min <= len(hl) <= HIGHLIGHT_MAX):
+    has_people_analysis = isinstance(story.get('analysis'), dict) and bool(story['analysis'].get('people'))
+    if not has_people_analysis and not (hl_min <= len(hl) <= HIGHLIGHT_MAX):
         problems.append(f"highlights {len(hl)} 张，要求 {hl_min}-{HIGHLIGHT_MAX}"
                         f"（当天只有 {people} 人说话，不必凑到 {HIGHLIGHT_MIN} 张）")
     print(f"[结构] timeline {len(tl)} 段（参考 {lo_n}-{hi_n}）/ highlights {len(hl)} 张"

@@ -35,7 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(SCRIPTS_DIR, "lib"))
 
-from wechat_data import archive, browse, db, readiness, settings  # noqa: E402
+from wechat_data import analysis, archive, browse, db, readiness, settings  # noqa: E402
 
 WEB_DIR = os.path.join(SCRIPTS_DIR, "web")
 
@@ -229,6 +229,43 @@ def api_messages(qs: dict, cfg: dict) -> tuple:
     }, 200
 
 
+def api_context(qs: dict, cfg: dict) -> tuple:
+    point, error = _required_point(qs)
+    if error:
+        return error
+    date, username = point
+    key = _one(qs, 'key')
+    if not re.fullmatch(r'[0-9a-f]{64}', key):
+        return {'error': '缺少有效的搜索来源，请重新搜索。'}, 400
+    payload = archive.load(cfg, date, username)
+    if not payload or payload.get('chat', {}).get('username') != username:
+        return {'error': '找不到该群当日的素材归档。'}, 404
+    result = analysis.context(payload, date, key,
+                              _clamp(_one(qs, 'before'), 0, 30, 8),
+                              _clamp(_one(qs, 'after'), 0, 30, 12))
+    if result is None:
+        return {'error': '来源已变化或无法唯一定位，请重新采集索引后搜索。',
+                'code': 'CONTEXT_CHANGED'}, 409
+    entry = db.get_entry(cfg, date, username)
+    return {'date': date, 'username': username, **result,
+            'collection': entry.get('collection') if entry else None}, 200
+
+
+def api_analysis(qs: dict, cfg: dict) -> tuple:
+    point, error = _required_point(qs)
+    if error:
+        return error
+    date, username = point
+    payload = archive.load(cfg, date, username)
+    if not payload or payload.get('chat', {}).get('username') != username:
+        return {'error': '尚无该群当日的素材归档。'}, 404
+    entry = db.get_entry(cfg, date, username)
+    return {'date': date, 'username': username,
+            'source_revision': (payload.get('collection') or {}).get('revision'),
+            'collection': entry.get('collection') if entry else None,
+            'activity': analysis.activity(payload), 'analysis': analysis.saved(cfg, entry, payload)}, 200
+
+
 def api_health(cfg: dict) -> dict:
     return {
         "ok": True,
@@ -276,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             return self.send_json(state)
         known = {"/api/browse", "/api/day", "/api/chat", "/api/entry",
-                 "/api/search", "/api/messages", "/api/health"}
+                 "/api/search", "/api/messages", "/api/health", "/api/context", "/api/analysis"}
         if path in known and not state["reading"]["available"]:
             return self.send_json(readiness.unavailable_error(state), 503)
         if path not in known:
@@ -310,6 +347,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(body, code)
         if path == "/api/messages":
             body, code = api_messages(qs, cfg)
+            return self.send_json(body, code)
+        if path in ('/api/context', '/api/analysis'):
+            body, code = (api_context if path == '/api/context' else api_analysis)(qs, cfg)
             return self.send_json(body, code)
         if path == "/api/health":
             return self.send_json(api_health(cfg))

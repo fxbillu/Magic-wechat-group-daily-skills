@@ -276,6 +276,20 @@ class PackageTest(unittest.TestCase):
         self.assertIn('MISSING_FILE: scripts/lib/wechat_data/collection.py', result.stdout)
         self.assertFalse((self.root / 'candidate.zip').exists())
 
+    def test_overview_runtime_files_cannot_be_removed_from_the_inventory(self):
+        self.align_test_versions()
+        path = self.skill / 'references/release-files.json'
+        original = json.loads(path.read_text())
+        for relative in ('scripts/assets/report-layout.css', 'scripts/lib/wechat_data/report_layout.py',
+                         'scripts/lib/wechat_data/analysis.py', 'references/analysis.md'):
+            with self.subTest(relative=relative):
+                manifest = dict(original, files=[p for p in original['files'] if p != relative])
+                path.write_text(json.dumps(manifest))
+                result = self.run_cli('--build', '--output', self.root / 'incomplete.zip')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('MANIFEST_INVALID', result.stdout)
+                self.assertFalse((self.root / 'incomplete.zip').exists())
+
     def test_t1_collection_and_report_records_cannot_be_whitelisted(self):
         self.align_test_versions()
         manifest_path = self.skill / 'references/release-files.json'

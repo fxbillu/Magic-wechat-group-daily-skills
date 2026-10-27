@@ -231,6 +231,7 @@
       return { name: "search", key: "search", filters: {
         q: u.searchParams.get("q") || "", chat: u.searchParams.get("chat") || "",
         from: u.searchParams.get("from") || "", to: u.searchParams.get("to") || "",
+        sender: u.searchParams.get("sender") || "",
       } };
 
     if (seg[0] === "d" && seg[1]) return { name: "day", key: "dates", date: seg[1] };
@@ -901,10 +902,85 @@
 
   // ────────────────────────────────────────────── 视图：明细
 
+  const AnalysisItem = {
+    props: ["row", "kind"],
+    template: `<article class="analysis-row">
+      <template v-if="kind === 'quotes'"><blockquote>{{ row.text }}</blockquote><p class="note">{{ row.who }}</p></template>
+      <template v-else><h3 v-if="row.title || row.name">{{ row.title || row.name }} <span class="topic-label" v-if="row.label">{{ row.label }}</span></h3><p>{{ row.summary }}</p></template>
+      <details class="source-evidence"><summary>核对原文 · {{ row.evidence.length }} 条</summary><p v-for="m in row.evidence" :key="m.source_id"><span class="note">{{ m.time }} · {{ m.sender }}</span><br>{{ m.text }}</p></details>
+    </article>`,
+  };
+
+  const AnalysisPanel = {
+    props: ["username", "date"],
+    components: { AnalysisItem },
+    setup(props) {
+      const state = reactive({ loading: false, error: "", data: null });
+      let request = 0;
+      async function load() {
+        const current = ++request;
+        state.loading = true;
+        state.error = "";
+        try {
+          const data = await getJSON("/api/analysis?" + new URLSearchParams({ username: props.username, date: props.date }));
+          if (current === request) state.data = data;
+        } catch (error) { if (current === request) state.error = error.message; }
+        finally { if (current === request) state.loading = false; }
+      }
+      const peak = computed(() => (state.data?.activity.by_hour || []).filter(h => h.messages)
+        .sort((a, b) => b.messages - a.messages || a.hour - b.hour).slice(0, 1)
+        .map(h => String(h.hour).padStart(2, "0") + "时 · " + h.messages + "条").join(""));
+      watch(() => [props.username, props.date], () => { state.data = null; load(); }, { immediate: true });
+      return { state, load, peak, num };
+    },
+    template: `<section class="analysis-panel overview-panel">
+      <h2 class="overview-title">今日总览</h2>
+      <p v-if="state.loading" role="status">正在读取总览…</p>
+      <div v-else-if="state.error" class="banner err" role="alert">{{ state.error }} <button class="btn" type="button" @click="load">重试</button></div>
+      <template v-else-if="state.data">
+        <p v-if="state.data.collection?.state === 'failed'" class="banner err">本次采集失败，以下总览来自上次成功素材。</p>
+        <p v-if="state.data.collection?.range" class="note">素材范围：{{ state.data.collection.range.from }} → {{ state.data.collection.range.to }}</p>
+        <div class="reader-metrics">
+          <div><span>消息</span><b>{{ num(state.data.activity.total_messages) }}<small> 条</small></b></div>
+          <div><span>发言人数</span><b>{{ num(state.data.activity.unique_senders) }}<small> 人</small></b></div>
+          <div><span>文本量</span><b>{{ num(state.data.activity.text_chars) }}<small> 字</small></b></div>
+        </div>
+        <p v-if="peak" class="note">较活跃时段：{{ peak }}。发言量不代表贡献或工作完成。</p>
+        <AnalysisItem v-if="state.data.analysis.overview" :row="state.data.analysis.overview" kind="overview" />
+        <p v-if="state.data.analysis.state !== 'ready'" class="note">
+          {{ state.data.analysis.state === 'stale' ? '素材已更新，旧分析待重新生成。' : state.data.analysis.state === 'invalid' ? '分析来源校验未通过，请在 WorkBuddy 中重新验稿。' : '旧稿尚无话题分析，仍可阅读已有日报。可在 WorkBuddy 中更新。' }}
+        </p>
+        <div class="reader-overview-grid">
+          <section v-if="state.data.analysis.topics.length">
+            <h3 class="reader-section-title">主要话题</h3>
+            <AnalysisItem v-for="(row, i) in state.data.analysis.topics.slice(0, 3)" :key="i" :row="row" kind="topics" />
+            <details v-if="state.data.analysis.topics.length > 3" class="more-topics"><summary>更多话题 · {{ state.data.analysis.topics.length - 3 }} 条</summary><AnalysisItem v-for="(row, i) in state.data.analysis.topics.slice(3)" :key="i" :row="row" kind="topics" /></details>
+          </section>
+          <aside>
+            <h3 v-if="state.data.activity.participants.length" class="reader-section-title">活跃分布</h3>
+            <ul class="reader-distribution" v-if="state.data.activity.participants.length">
+              <li v-for="p in state.data.activity.participants.slice(0, 5)" :key="p.sender_id || p.name"><div><span>{{ p.name }}</span><b>{{ p.messages }}<small> 条 · {{ (p.share * 100).toFixed(1) }}%</small></b></div><meter min="0" max="1" :value="p.share" :aria-label="p.name + '的发言占比'">{{ (p.share * 100).toFixed(1) }}%</meter></li>
+            </ul>
+        <p v-else class="note">本次成功归档零条消息，没有活跃成员。</p>
+            <details class="reader-activity" v-if="state.data.activity.participants.length"><summary>展开完整活跃统计</summary>
+              <table class="activity-table"><caption>本群本次归档的发言量</caption><thead><tr><th scope="col">成员</th><th scope="col">消息</th><th scope="col">占比</th></tr></thead>
+              <tbody><tr v-for="p in state.data.activity.participants" :key="p.sender_id || p.name"><th scope="row">{{ p.name }}<small v-if="p.sender_id">{{ p.sender_id }}</small></th><td>{{ num(p.messages) }}</td><td>{{ (p.share * 100).toFixed(1) }}%</td></tr></tbody></table>
+              <p class="note">{{ state.data.activity.note }}</p>
+            </details>
+            <section v-if="state.data.analysis.followups.length" class="reader-followups"><h3 class="reader-section-title">待确认与下一步</h3><AnalysisItem v-for="(row, i) in state.data.analysis.followups" :key="i" :row="row" kind="followups" /></section>
+          </aside>
+        </div>
+        <details v-if="state.data.analysis.people.length || state.data.analysis.quotes.length" class="analysis-details"><summary>人物动态与原文金句</summary>
+          <section v-for="section in [{key:'people',title:'人物动态'},{key:'quotes',title:'原文金句'}]" :key="section.key"><h3 v-if="state.data.analysis[section.key].length">{{ section.title }}</h3><AnalysisItem v-for="(row, i) in state.data.analysis[section.key]" :key="i" :row="row" :kind="section.key" /></section>
+        </details>
+      </template>
+    </section>`,
+  };
+
   const DetailView = {
     props: ["data", "username", "date"],
     emits: ["nav-rows"],
-    components: { Badge, EntryStatus, EmptyBox, WorkBuddyAction },
+    components: { Badge, EntryStatus, EmptyBox, WorkBuddyAction, AnalysisPanel },
     setup(props, { emit }) {
       const remote = reactive({ loading: false, error: null, data: null });
       let entryReq = 0;
@@ -1045,7 +1121,7 @@
             <div class="pager"><a :href="'/d/' + date">当天全部群</a></div>
           </div>
 
-          <div class="panel">
+          <div class="panel" v-if="!entry.data_file">
             <div class="kv">
               <div>消息<b>{{ num(entry.total) }}</b></div>
               <div>发言人数<b>{{ num(entry.unique_senders) }}</b></div>
@@ -1059,7 +1135,7 @@
             </p>
           </div>
 
-          <div class="banner" :class="{err: ['collection_failed','report_failed','orphan'].includes(entry.state)}">
+          <div class="banner" v-if="entry.state !== 'ready'" :class="{err: ['collection_failed','report_failed','orphan'].includes(entry.state)}">
             {{ meta(entry.state).note }}
           </div>
           <div class="banner err" v-if="entry.collectionState === 'collection_failed' && entry.state !== 'collection_failed'">
@@ -1070,6 +1146,8 @@
             <span v-if="issue.retryable === false">请先在 WorkBuddy 中修复上述问题，再重新采集。</span>
             <span v-else>请在 WorkBuddy 中核对问题，再决定是否重新采集。</span>
           </div>
+          <AnalysisPanel v-if="entry.data_file || ['collected', 'empty'].includes(entry.collectionState)"
+            :key="username + '@' + date" :username="username" :date="date" />
           <WorkBuddyAction :username="username" :date="date" />
 
           <template v-if="entry.html_url || entry.png_url">
@@ -1078,7 +1156,7 @@
               <a v-if="entry.png_url" class="btn" :href="entry.png_url" download>下载长图</a>
               <a class="btn quiet" :href="'/c/' + encodeURIComponent(entry.username)">看这个群的历史</a>
             </div>
-            <p v-if="!entry.png_url" class="note">未提供长图，可阅读 HTML 日报。报纸为固定宽度，窄屏可在独立窗口打开阅读。</p>
+            <p v-if="!entry.png_url" class="note">未提供长图，可阅读 HTML 日报，也可单独打开阅读。</p>
             <iframe v-if="entry.html_url" class="report" :src="entry.html_url" title="日报" sandbox></iframe>
             <img v-else class="reportimg" :src="entry.png_url" alt="日报长图" />
           </template>
@@ -1223,16 +1301,50 @@
 
   // ────────────────────────────────────────────── 视图：搜索
 
+  const SearchContext = {
+    props: ["row"],
+    setup(props) {
+      const state = reactive({ loading: false, error: "", data: null });
+      async function load(event) {
+        if (event && !event.target.open) return;
+        if (state.loading || (event && state.data)) return;
+        state.loading = true;
+        state.error = "";
+        try {
+          const r = props.row;
+          state.data = await getJSON("/api/context?" + new URLSearchParams({ date: r.date, username: r.username, key: r.context_key }));
+        } catch (error) { state.error = error.message; }
+        finally { state.loading = false; }
+      }
+      return { state, load };
+    },
+    template: `<details class="search-context" @toggle="load">
+      <summary>查看前后文</summary>
+      <p v-if="state.loading" role="status">正在读取前后文…</p>
+      <div v-else-if="state.error" class="banner err" role="alert">{{ state.error }} <button type="button" class="btn" @click="load()">重试</button></div>
+      <template v-else-if="state.data">
+        <p class="note">同一份归档，最多前 8 条、后 12 条；上下文不受搜索关键词和人物筛选限制。</p>
+        <p v-if="state.data.range" class="note">素材范围：{{ state.data.range.start }} → {{ state.data.range.end }}</p>
+        <p v-if="state.data.collection?.state === 'failed'" class="banner err">本次采集失败，正在查看上次成功素材。</p>
+        <p class="note">{{ state.data.has_earlier ? '此前还有消息，可打开当日日报继续查看。' : '已到本日归档开头。' }}</p>
+        <div class="context-message" :class="{'context-match': m.is_match}" v-for="m in state.data.messages" :key="m.source_id">
+          <p class="note">{{ m.time }} · {{ m.sender }} <strong v-if="m.is_match">命中消息</strong></p><p>{{ m.text }}</p>
+        </div>
+        <p class="note">{{ state.data.has_later ? '此后还有消息，可打开当日日报继续查看。' : '已到本日归档结尾。' }}</p>
+      </template>
+    </details>`,
+  };
+
   const SearchView = {
     props: ["data", "filters", "chats"],
     emits: ["nav-rows", "do-search"],
-    components: { EmptyBox },
+    components: { EmptyBox, SearchContext },
     setup(props, { emit }) {
-      const local = reactive({ q: "", chat: "", from: "", to: "", error: "" });
+      const local = reactive({ q: "", chat: "", from: "", to: "", sender: "", error: "" });
       watch(() => props.filters, filters => Object.assign(local, filters), { immediate: true });
       function submit() {
         local.error = local.from && local.to && local.from > local.to ? "开始日期不能晚于结束日期。" : "";
-        if (!local.error) emit("do-search", { q: local.q.trim(), chat: local.chat, from: local.from, to: local.to });
+        if (!local.error) emit("do-search", { q: local.q.trim(), chat: local.chat, from: local.from, to: local.to, sender: local.sender.trim() });
       }
 
       const nav = computed(() => {
@@ -1268,6 +1380,7 @@
             <label>群<select name="chat" v-model="local.chat"><option value="">全部群</option><option v-for="c in chats" :key="c.username" :value="c.username">{{ c.chat }} · {{ c.username }}</option></select></label>
             <label>开始日期<input type="date" name="from" v-model="local.from" /></label>
             <label>结束日期<input type="date" name="to" v-model="local.to" /></label>
+            <label>人物<input type="text" name="sender" v-model="local.sender" maxlength="256" placeholder="群内名片、姓名或用户 ID" /></label>
           </div>
           <p v-if="local.error" class="filter-error" role="alert">{{ local.error }}</p>
         </form>
@@ -1295,8 +1408,7 @@
             body="换个词试试。中文搜索是子串匹配，两个字的词也能搜到。" />
 
           <div class="list" v-else>
-            <a class="item stack" v-for="(r, i) in data.search.results" :key="r.username + '@' + r.date + '@' + i"
-               :href="detailURL(r.username, r.date)">
+            <article class="item stack" v-for="(r, i) in data.search.results" :key="r.context_key || r.username + '@' + r.date + '@' + i">
               <div class="hit-top">
                 <span class="d">{{ md(r.date) }}</span>
                 <span class="t">
@@ -1306,7 +1418,9 @@
                 <span class="hit-time">{{ (r.time || '').slice(11) }}</span>
               </div>
               <div class="hit-text" v-html="highlight(r.text, data.search.q)"></div>
-            </a>
+              <div class="hit-actions"><a :href="detailURL(r.username, r.date)">打开当日日报</a></div>
+              <SearchContext v-if="r.context_key" :key="r.context_key" :row="r" />
+            </article>
           </div>
         </template>
       </div>`,
@@ -1450,7 +1564,7 @@
       async function doSearch(filters) {
         const q = filters.q || "";
         const params = new URLSearchParams();
-        for (const key of ["q", "chat", "from", "to"]) if (filters[key]) params.set(key, filters[key]);
+        for (const key of ["q", "chat", "from", "to", "sender"]) if (filters[key]) params.set(key, filters[key]);
         const want = "/search" + (params.size ? "?" + params : "");
         if (location.pathname + location.search !== want) {
           history.replaceState({}, "", want);

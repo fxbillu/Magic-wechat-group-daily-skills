@@ -61,11 +61,12 @@ class FetchStats:
     text_count: int = 0
     chars: int = 0
     senders: dict = field(default_factory=dict)   # 显示名 -> 条数
+    sender_keys: set = field(default_factory=set)  # stable identities, not card names
     types: dict = field(default_factory=dict)     # 类型名 -> 条数
 
     @property
     def unique_senders(self) -> int:
-        return len(self.senders)
+        return len(self.sender_keys or self.senders)
 
 
 def table_of(username: str) -> str:
@@ -151,7 +152,35 @@ class MessageReader:
         """Name2Id row IDs are local to the source shard."""
         return dict(self._conn(path).execute("select rowid, user_name from Name2Id"))
 
-    def _display_names(self, usernames: set[str]) -> dict[str, str]:
+    def _group_display_names(self, chat: Chat) -> dict[str, str]:
+        """Optional WeChat 4.x group cards; incompatible/missing FTS falls back."""
+        path = os.path.join(self.db_dir, 'contact', 'contact_fts.db')
+        if not chat.is_group or not os.path.isfile(path):
+            return {}
+        from . import guard
+        stamp = guard.read_stamp(self.db_dir) or {}
+        if 'contact/contact_fts.db' in (stamp.get('failures') or {}):
+            return {}
+        try:
+            contact = self._conn(self.contact_db)
+            identities = dict(contact.execute('SELECT id, username FROM contact'))
+            room = next((key for key, value in identities.items() if value == chat.username), None)
+            if room is None:
+                return {}
+            rows = self._conn(path).execute(
+                'SELECT member_id, a_group_remark FROM chatroom_member_fts_v3 WHERE room_id=?', (room,))
+            names = {}
+            for member, display in rows:
+                if isinstance(display, bytes):
+                    display = display.decode('utf-8', 'replace')
+                name = display.strip() if isinstance(display, str) else ''
+                if name and member in identities:
+                    names[identities[member]] = name
+            return names
+        except sqlite3.Error:
+            return {}
+
+    def _display_names(self, usernames: set[str], chat: Chat) -> dict[str, str]:
         out = {}
         if not usernames:
             return out
@@ -163,6 +192,7 @@ class MessageReader:
                     out[uname] = remark or nick or uname
         finally:
             cn.close()
+        out.update({user: name for user, name in self._group_display_names(chat).items() if user in usernames})
         return out
 
     def has_messages(self, chat: Chat) -> bool:
@@ -235,7 +265,7 @@ class MessageReader:
         # 发送者
         usernames = {id2name[r[5]].get(r[2]) for r in rows}
         usernames.discard(None)
-        disp = self._display_names(usernames)
+        disp = self._display_names(usernames, chat)
         # 兜底：从消息内容前缀里抽 wxid
         def resolve_sender(sid, raw, path):
             uname = id2name[path].get(sid, "")
@@ -300,6 +330,7 @@ class MessageReader:
         for m in msgs:
             st.total += 1
             st.senders[m.sender] = st.senders.get(m.sender, 0) + 1
+            st.sender_keys.add(m.sender_username or 'name:' + m.sender)
             tname = content.BASE_TYPES.get(m.base, str(m.base))
             st.types[tname] = st.types.get(tname, 0) + 1
             if m.base == 1:

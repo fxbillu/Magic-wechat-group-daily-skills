@@ -88,7 +88,7 @@ if (input.phase === "search-filter") {
       const url=new URL(await page.url());
       for(const [key,value] of Object.entries({q:"合成消息",chat:input.groups[index],from:input.day,to:input.day})) assert(url.searchParams.get(key)===value,"search route lost "+key);
       await page.reload(); await page.waitForSelector(".hit-text");
-      const matches=await page.evaluate(()=>[...document.querySelectorAll(".item.stack")].map(e=>({href:e.getAttribute("href"),text:e.innerText})));
+      const matches=await page.evaluate(()=>[...document.querySelectorAll(".item.stack")].map(e=>({href:e.querySelector(".hit-actions a").getAttribute("href"),text:e.innerText})));
       assert(matches.length===1 && matches[0].href===detail(input.groups[index]),"same-name group filter broadened");
       assert(matches[0].text.includes(index===0?"甲的合成消息":"乙的合成消息"),"wrong same-name group result");
       const values=await page.evaluate(()=>Object.fromEntries([...document.querySelectorAll("form [name]")].map(e=>[e.name,e.value])));

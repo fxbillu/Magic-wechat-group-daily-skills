@@ -16,7 +16,10 @@ import html
 import json
 import os
 import subprocess
+from pathlib import Path
 import sys
+
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
@@ -82,7 +85,7 @@ MONO = '"SF Mono","Consolas","JetBrains Mono",monospace'
 THEMES = {
     "magazine": {
         "bg": "#E8E2D5", "paper": "#F7F3EA", "ink": "#1E1B16",
-        "body_text": "#2E2820", "muted": "#8A8175", "accent": "#B33A2B",
+        "body_text": "#2E2820", "muted": "#6B665C", "accent": "#B33A2B",
         "rule": "#D9D0BF", "card": "#FFFDF8", "quote_bg": "rgba(179,58,43,.045)",
         "faint": "#B8AE9C",
         "font_head": SERIF, "font_body": SERIF,
@@ -130,7 +133,7 @@ def build_css(theme: str, accent: str | None = None) -> str:
     --pad:{t['pad']};--avatar-radius:{t['avatar_radius']};--card-radius:{t['card_radius']};
     --mast-rule:{t['mast_rule']};--dropcap:{t['dropcap']};
     """
-    return ":root{" + v + "}\n" + BASE_CSS
+    return ":root{" + v + "}\n" + BASE_CSS + "\n" + (Path(BASE) / "assets/report-layout.css").read_text(encoding="utf-8")
 
 
 def esc(s) -> str:
@@ -178,7 +181,8 @@ def _node(n: dict, i: int, uidx: dict, avatars: dict) -> str:
 
 
 def render_html(story: dict, theme: str = "magazine", accent: str | None = None,
-                uidx: dict | None = None, avatars: dict | None = None) -> str:
+                uidx: dict | None = None, avatars: dict | None = None,
+                payload: dict | None = None) -> str:
     uidx = uidx or {}
     avatars = avatars or {}
     stats = story.get("stats") or {}
@@ -217,12 +221,12 @@ def render_html(story: dict, theme: str = "magazine", accent: str | None = None,
         qas += f'<div class="qa"><div class="qa-q">Q：{esc(q.get("q"))}</div>{ans}</div>'
     qas_html = f'<div class="sec-title">问答沉淀</div>{qas}' if qas else ""
 
-    stat_html = ""
-    for key, label in (("total_messages", "条消息"), ("unique_senders", "人发言"),
-                       ("total_chars", "字讨论"), ("new_members", "位新成员")):
-        v = stats.get(key)
-        if v:
-            stat_html += f'<div><div class="stat-num">{v}</div><div class="stat-label">{label}</div></div>'
+    from wechat_data import analysis, report_layout
+    content = analysis.with_evidence(story.get('analysis') or {}, payload or {})
+    front = report_layout.render_front(story, content, story.get('activity') or {})
+    analysis_html = report_layout.render_details(content)
+    if content.get('people'):
+        hl_html = ''
 
     fq = story.get("footer_quote") or {}
     footer_html = ""
@@ -231,24 +235,21 @@ def render_html(story: dict, theme: str = "magazine", accent: str | None = None,
                        f'<div class="footer-attr">{esc(fq.get("attr",""))}</div></div>')
 
     return f'''<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8">
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(story.get("group_name"))} · 群日报</title>
 <style>{build_css(theme, accent)}</style></head>
 <body><div class="page">
   <div class="masthead">
-    <div class="brand">群日报</div>
+    <div class="brand">Magic 群日报</div>
     <div class="vol">Vol. {esc(story.get("date",""))} &nbsp;·&nbsp; {esc(story.get("time_range",""))}</div>
   </div>
-  <section class="lead">
-    <div class="eyebrow">{esc(story.get("lead_eyebrow","Today's Story · 今日故事"))}</div>
-    <h1 class="title">{esc(story.get("lead_title","")).replace(chr(10),"<br>")}</h1>
-    <p class="opening">{esc(story.get("opening",""))}</p>
-  </section>
+  {front}
+  <section class="story-intro" id="story"><h2>完整故事线</h2><p>{esc(story.get('opening', ''))}</p></section>
   <section class="timeline">{timeline}</section>
   {hl_html}
   {sops_html}
   {qas_html}
-  <div class="stats">{stat_html}</div>
+  {analysis_html}
   {footer_html}
   <div class="produced">PRODUCED · {esc(story.get("group_name",""))} · 本地生成，未上传</div>
 </div></body></html>'''
@@ -463,7 +464,7 @@ def main():
 
     story = json.load(open(args.story, encoding="utf-8"))
 
-    from wechat_data import archive, db, settings
+    from wechat_data import analysis, archive, db, settings
     cfg = settings.require()
 
     if not args.no_register:
@@ -475,6 +476,19 @@ def main():
             return 3
         story['username'] = username
         story.setdefault('source_revision', entry['collection']['revision'])
+    payload = archive.load(cfg, str(story.get('date') or ''), story.get('username') or story.get('group_name', ''))
+    # Model output may not override measured activity or publish unbound analysis.
+    story.pop('activity', None)
+    if 'analysis' in story:
+        errors = analysis.validate(story['analysis'], payload) if payload else ['分析缺少冻结素材归档']
+        if payload and story.get('source_revision') != (payload.get('collection') or {}).get('revision'):
+            errors.append('分析 source_revision 与当前素材不一致')
+        if errors:
+            print('[错误] ' + '；'.join(errors), file=sys.stderr)
+            return 1
+    if payload:
+        story['activity'] = analysis.activity(payload)
+
     source = archive.load(cfg, str(story.get('date') or ''), story.get('username') or '')
     if source and source.get('period_mode') == 'rolling':
         if story.get('source_revision') != source['collection']['revision']:
@@ -502,7 +516,7 @@ def main():
             print(f"[warn] 头像加载失败（改用占位）：{e}")
 
     html_text = render_html(story, theme=theme, accent=args.accent,
-                            uidx=uidx, avatars=avatars)
+                            uidx=uidx, avatars=avatars, payload=payload)
     os.makedirs(os.path.dirname(os.path.abspath(out_html)), exist_ok=True)
     with open(out_html, "w", encoding="utf-8") as f:
         f.write(html_text)

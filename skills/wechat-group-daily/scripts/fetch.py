@@ -144,6 +144,47 @@ def cmd_stat(args):
     return 0
 
 
+def cmd_analyze(args):
+    """Read archived material only; never refresh/decrypt or call a model."""
+    import json
+    from wechat_data import analysis, archive, db, settings
+    cfg = settings.require()
+    try:
+        from datetime import date as date_type
+        start = date_type.fromisoformat(args.date or args.start)
+        end = date_type.fromisoformat(args.end or args.date or args.start)
+        if args.end and not args.start:
+            raise ValueError()
+        if not 0 <= (end - start).days < 366:
+            raise ValueError()
+        dates = _date_list(args)
+    except ValueError:
+        print('[错误] 请使用有效的 YYYY-MM-DD 日期，开始日不晚于结束日，范围不超过 366 天。', file=sys.stderr)
+        return 2
+    if not dates or len(dates) > 366:
+        print('[错误] 请选择 1—366 天的日期范围。', file=sys.stderr)
+        return 2
+    days, missing = [], []
+    for date in dates:
+        payload = archive.load(cfg, date, args.chat)
+        if not payload or payload.get('chat', {}).get('username') != args.chat:
+            missing.append(date)
+            continue
+        day = analysis.material(payload, person=args.person, topic=args.topic,
+                                before=args.before, after=args.after, limit=args.limit)
+        day['date'] = date
+        entry = db.get_entry(cfg, date, args.chat)
+        day['latest_collection'] = entry.get('collection') if entry else None
+        days.append(day)
+    print(json.dumps({'username': args.chat, 'days': days, 'missing_dates': missing,
+                      'complete': not missing and not any(d['truncated'] or
+                          (d.get('collection') or {}).get('coverage', {}).get('complete') is not True or
+                          (d.get('latest_collection') or {}).get('state') == 'failed' for d in days),
+                      'note': '关键词和人物仅用于检索素材；话题、人物贡献和金句由宿主根据原文提炼。'},
+                     ensure_ascii=False, indent=2))
+    return 0 if days and not missing else 1
+
+
 def _date_list(args):
     from datetime import date as _d
     from datetime import timedelta
@@ -417,6 +458,19 @@ def main():
     p.add_argument("--max-age-hours", type=float, default=argparse.SUPPRESS)
     p.add_argument("--allow-stale", action="store_true", default=argparse.SUPPRESS)
     p.set_defaults(func=cmd_archive)
+
+    p = sub.add_parser('analyze', help='从冻结归档读取活跃统计及人物／话题上下文素材')
+    p.add_argument('--chat', required=True, help='稳定群 ID')
+    period = p.add_mutually_exclusive_group(required=True)
+    period.add_argument('--date', help='YYYY-MM-DD')
+    period.add_argument('--start', help='起始日期 YYYY-MM-DD')
+    p.add_argument('--end', help='结束日期（含当天），配合 --start')
+    p.add_argument('--person', default='', help='稳定用户 ID 或显示名片段')
+    p.add_argument('--topic', default='', help='话题关键词，非自动语义分类')
+    p.add_argument('--before', type=int, choices=range(31), default=8)
+    p.add_argument('--after', type=int, choices=range(31), default=12)
+    p.add_argument('--limit', type=int, choices=range(1, 501), default=200, metavar='1..500')
+    p.set_defaults(func=cmd_analyze)
 
     p = sub.add_parser("daily", help="每日一次：准备接续窗口或确认已出报")
     p.add_argument("--until", help="显式截止时间，必须含时区；默认最近一次配置的每日时刻")

@@ -8,11 +8,11 @@
 
 选择多个微信群，由你 Windows 电脑上的 WorkBuddy 在选定时间每天整理成独立日报；按日期看多群，按群看历史，也能组合搜索。配置、密钥和归档文件保存在本机的包外目录。
 
-**Windows · WorkBuddy · 1.3.0-rc.5 源码测试候选**
+**Windows · WorkBuddy · 1.3.0-rc.6 Windows 测试候选**
 
-[复制安装提示词](#安装与更新) · [下载候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.4) · [Windows 试用说明](skills/wechat-group-daily/references/windows-acceptance.md)
+[复制安装提示词](#安装与更新) · [下载候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.6) · [Windows 试用说明](skills/wechat-group-daily/references/windows-acceptance.md)
 
-当前 GitHub 源码新增每日一次的接续日报；通过 Git 安装/更新获取 rc.5。上面的已发布 ZIP 仍为 rc.4。已有配置与历史日报保留。
+新版先看实算活跃统计、主要话题和待确认事项，再读完整故事线；人物动态、原文金句和搜索前后文都可核对来源。沿用每日一次的接续窗口，保留原配置和历史日报。
 
 ## 为什么做这个项目
 
@@ -25,6 +25,10 @@
 <a href="assets/readme/daily-overview.png"><img src="assets/readme/daily-overview.png" width="100%" alt="本地阅读器的多群日报列表：分别展示采集结果、可读日报与旧稿待更新状态。截图全部使用合成数据。"></a>
 
 *截图来自程序的合成数据浏览检查，用于展示界面；不是真实微信群或 Windows 运行证明。可点击查看原图。*
+
+<a href="assets/readme/overview-first.png"><img src="assets/readme/overview-first.png" width="100%" alt="新版日报先看活跃统计、主要话题与待确认事项，再读完整故事；全部为合成示例。"></a>
+
+*rc.6 总览前置成稿，由正式渲染器生成，示例人员与群聊均为虚构。*
 
 | 日常要做的事 | 在这里怎么完成 |
 | --- | --- |
@@ -50,7 +54,7 @@ https://github.com/fxbillu/Magic-wechat-group-daily-skills
 按照仓库说明加载微信群日报 Skill，带我完成初始化、生成首份日报，并配置每日任务。已有安装则更新，保留原配置和历史。
 ```
 
-也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.4) 导入 WorkBuddy。
+也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.6) 导入 WorkBuddy。
 
 ## 桌面快捷方式
 
@@ -76,11 +80,11 @@ Windows 初始化保存配置时，会创建带报纸图标的 **Magic 群日报
 
 ## 当前验证范围
 
-开发侧已完成必要修复与前后端联调。前一轮的 68 项公共检查中，67 项通过、1 项可选 Pillow 检查跳过；真实 Python API 到页面的关键流程通过合成输入验证。
+开发侧已完成必要修复与前后端联调。本轮公共检查及真实 Python API 到浏览器联调通过，结果见 [rc.6 验证记录](docs/verification/1.3.0-rc.6.md)；当前解释器的一项可选 Pillow 检查跳过。
 
-rc.3 默认跳过不需要的 FTS 库，按核心库结果判断解密成功，并支持跨盘目录和中断临时文件回收。数据库层仍按共享消息分片解密，归档仅保存所选群的指定日期；旧版无归属临时文件和历史日报不会自动删除。
+默认跳过不需要的 FTS 库，仅额外尝试群内名片所需的可选联系人索引，失败回退原名称；保留 rc.3 的核心库解密与恢复能力。程序按核心库结果判断解密成功，并支持跨盘目录和中断临时文件回收。数据库层仍按共享消息分片解密，归档仅保存所选群的指定日期；旧版无归属临时文件和历史日报不会自动删除。
 
-**Windows 真实微信取数、模型首报、PNG 和实际到点执行，仍由使用者在本机反馈。** WAL 仅记录诊断并沿用原路径，不一刀切阻断；窄窗口里的 HTML 报纸可能需要横向滚动，可单独打开阅读。
+**Windows 真实微信取数、模型首报、PNG 和实际到点执行，仍由使用者在本机反馈。** WAL 仅记录诊断并沿用原路径，不一刀切阻断；新版 HTML 日报支持窄屏单列；旧版历史 HTML 沿用原有排版，可单独打开阅读。
 
 ## 免责声明
 

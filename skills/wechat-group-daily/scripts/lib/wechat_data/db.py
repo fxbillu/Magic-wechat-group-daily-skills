@@ -781,8 +781,8 @@ def search(cfg: dict, kw: str, chat: str | None = None,
         where.append("m.username=?")
         args.append(chat)
     if sender:
-        where.append("m.sender LIKE ?")
-        args.append(f"%{sender}%")
+        where.append("(m.sender LIKE ? OR m.sender_uid=?)")
+        args.extend((f"%{sender}%", sender))
     if mtype:
         where.append("m.type=?")
         args.append(mtype)
@@ -801,9 +801,11 @@ def search(cfg: dict, kw: str, chat: str | None = None,
             "LEFT JOIN entry e ON e.date=m.date AND e.username=m.username "
             f"WHERE {' AND '.join(where)} ORDER BY m.ts DESC LIMIT ?", tuple(args))
         out = []
+        from .analysis import search_key
         for r in cur.fetchall():
             d = dict(r)
             d["time"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(d["ts"]))
+            d['context_key'] = search_key(d)
             out.append(d)
         return out
     finally:
