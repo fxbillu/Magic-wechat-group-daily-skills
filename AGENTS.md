@@ -23,7 +23,7 @@ Run commands from the repository root. The T0 checks use Python 3.11+ standard l
 - `python3 -B skills/wechat-group-daily/scripts/tools/serve.py --port 8765`: open the local reader; it also works before initialization.
 - `git status --short --branch`: inspect the branch and local changes.
 - `git diff --check`: detect whitespace errors in unstaged tracked changes; use `git diff --cached --check` for staged changes.
-- `gh issue list --repo fxbillu/wechat-group-daily-skills`: inspect tracked work.
+- `gh issue list --repo fxbillu/Magic-wechat-group-daily-skills`: inspect tracked work.
 
 ## Coding Style & Naming Conventions
 
@@ -45,7 +45,7 @@ Record substantive changes in `docs/dev-log.md`, including date, reason, scope, 
 
 ### Issue tracker
 
-Use GitHub Issues in `fxbillu/wechat-group-daily-skills`; read `docs/agents/issue-tracker.md` before ticket operations.
+Use GitHub Issues in `fxbillu/Magic-wechat-group-daily-skills`; read `docs/agents/issue-tracker.md` before ticket operations.
 
 ### Triage labels
 

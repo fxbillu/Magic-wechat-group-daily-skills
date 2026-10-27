@@ -35,6 +35,7 @@ ESSENTIAL = {
     'references/windows-acceptance.md', 'licenses/vue-MIT.txt', 'licenses/wcdb-key-tool-MIT.txt',
     'scripts/config.example.json', 'scripts/fetch.py', 'scripts/lib/wechat_data/collection.py',
     'scripts/tools/setup.py', 'scripts/tools/doctor.py',
+    'scripts/tools/desktop.py', 'scripts/lib/wechat_data/desktop.py',
     'scripts/tools/serve.py', 'scripts/tools/render_daily.py',
     'scripts/tools/check_story.py', 'scripts/tools/safe_decrypt.py',
     'scripts/tools/wcdb_key_tool_windows.py', 'scripts/tools/zstd_bridge.js',

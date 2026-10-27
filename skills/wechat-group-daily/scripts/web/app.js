@@ -1623,12 +1623,12 @@
 
       const title = computed(() => {
         const r = store.route;
-        if (r.name === "day") return r.date + " · 群日报";
-        if (r.name === "chat") return "群时间线 · 群日报";
-        if (r.name === "detail") return r.date + " · 群日报";
-        if (r.name === "search") return "搜索 · 群日报";
+        if (r.name === "day") return r.date + " · Magic 群日报";
+        if (r.name === "chat") return "群时间线 · Magic 群日报";
+        if (r.name === "detail") return r.date + " · Magic 群日报";
+        if (r.name === "search") return "搜索 · Magic 群日报";
         const m = { recent: "最近日报", dates: "按日期", chats: "按群", matrix: "矩阵" };
-        return (m[r.name] || "群日报") + " · 群日报";
+        return (m[r.name] || "群日报") + " · Magic 群日报";
       });
 
       watch(title, (t) => {
@@ -1679,7 +1679,7 @@
     template: `
       <a class="skip-link" href="#reading-content">跳到正文</a>
       <header class="top">
-        <a class="brand" href="/" @click.prevent="go('/')">群日报</a>
+        <a class="brand" href="/" @click.prevent="go('/')">Magic 群日报</a>
         <nav class="nav" aria-label="阅读导航">
           <a v-for="n in [
               {href:'/', label:'最近', key:'recent'},

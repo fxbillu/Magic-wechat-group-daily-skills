@@ -1,10 +1,10 @@
 # Issue tracker: GitHub
 
-Issues and specs live in GitHub Issues for `fxbillu/wechat-group-daily-skills`. Use the `gh` CLI and the explicit repository argument when operating outside this checkout.
+Issues and specs live in GitHub Issues for `fxbillu/Magic-wechat-group-daily-skills`. Use the `gh` CLI and the explicit repository argument when operating outside this checkout.
 
 ## Conventions
 
-- Create: `gh issue create --repo fxbillu/wechat-group-daily-skills --title "..." --body-file /path/to/issue.md`.
+- Create: `gh issue create --repo fxbillu/Magic-wechat-group-daily-skills --title "..." --body-file /path/to/issue.md`.
 - Read: `gh issue view <number> --json number,title,body,labels,comments`.
 - List: `gh issue list --state open --json number,title,labels`; add label filters as needed.
 - Comment: `gh issue comment <number> --body-file /path/to/comment.md`.

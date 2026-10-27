@@ -174,6 +174,7 @@ class SetupTest(unittest.TestCase):
             resumed = setup(package, adapted, '--auto', '--resume', report['resume_token'], '--groups', GROUPS[0])
             self.assertEqual(resumed.returncode, 0, resumed.stdout + resumed.stderr)
             self.assertEqual(payload(resumed)['stage'], 'configuration_saved')
+            self.assertIn('desktop_shortcut', payload(resumed))
             config = json.loads(cp.read_text())
             self.assertEqual(config['chats'][0]['username'], GROUPS[0])
             self.assertEqual(config['chats'][0]['effective_from'], '2026-10-25')

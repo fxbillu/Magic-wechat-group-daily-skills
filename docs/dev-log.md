@@ -121,3 +121,10 @@
 - Published private GitHub prerelease [v1.3.0-rc.1](https://github.com/fxbillu/wechat-group-daily-skills/releases/tag/v1.3.0-rc.1) after development checks; source/tag commit `3d5d0a09b78d58a38d8c26e178b16ef52f62af78`.
 - Uploaded the 43-file clean Skill ZIP (228014 bytes), build receipt and SHA256SUMS. GitHub's returned ZIP digest matches local SHA-256 `d5555932fdf3339b4effb69192227844832be08b39f5e2dd9fdfec8e914b2a2e`.
 - Release was read back as prerelease=true, draft=false; source branch was pushed and clean. No Windows acceptance claimed. User's next step is importing the ZIP on Windows, generating a first daily report and configuring/checking the existing native task.
+
+## 2026-10-27 — Add Magic desktop entry and public repository branding
+
+- Request: create the Windows desktop shortcut during initialization, update the same shortcut on repeated runs, prefix the project with Magic, and make the repository public.
+- Changes: added a standard-library desktop launcher and Windows COM shortcut installation with a locally generated icon; setup and successful resume refresh the single fixed-name shortcut. Added Magic display branding and candidate 1.3.0-rc.2; retained internal Skill ID and data locations for compatibility. Updated the release inventory and active repository references.
+- Validation: three new public-entry checks cover starting/reusing the actual local reader, repeated shortcut installation with Unicode paths through a simulated Windows boundary, and a non-Windows no-op. Full suite: 59 checks, 58 passed and one optional Pillow check skipped on the current interpreter. Node syntax and static release checks passed. A bounded scan of 164 reachable text blobs found no checked credential patterns or committed runtime paths. Windows COM/icon rendering remains for user testing. Actual Windows COM/icon rendering remains for user testing.
+- Repository: live query showed the repository was already public before this update; renamed it to Magic-wechat-group-daily-skills under the user’s explicit request. No credentials or conversation data are intentionally published.

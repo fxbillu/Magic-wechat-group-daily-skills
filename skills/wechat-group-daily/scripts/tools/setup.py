@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE / 'lib'))
-from wechat_data import ChatResolver, archive, capabilities, guard, settings
+from wechat_data import ChatResolver, archive, capabilities, desktop, guard, settings
 
 
 class SetupFailure(Exception):
@@ -160,7 +160,8 @@ def main():
             if digest_config() != expected_hash:
                 raise SetupFailure('CONFIGURATION_CHANGED', 'review_configuration_before_resuming')
             if session.get('stage') == 'configuration_saved':
-                emit(stage='configuration_saved', resume_token=session['token'], first_report='not_observed', schedule='not_observed')
+                emit(stage='configuration_saved', resume_token=session['token'], first_report='not_observed',
+                     schedule='not_observed', desktop_shortcut=desktop.install_shortcut(settings.CONFIG_PATH))
                 return 0
             candidate, account = session['candidate'], session['account']
         else:
@@ -258,7 +259,8 @@ def main():
         session.update(stage='configuration_saved', committed_hash=digest_config())
         archive._atomic_write(progress_path(), session)
         emit(stage='configuration_saved', resume_token=session['token'], first_report='not_observed',
-             schedule='not_observed', diagnostics=guard.wal_diagnostics(settings.decrypted_dir(candidate)),
+             schedule='not_observed', desktop_shortcut=desktop.install_shortcut(settings.CONFIG_PATH),
+             diagnostics=guard.wal_diagnostics(settings.decrypted_dir(candidate)),
              next_action='write_check_render_and_open_sample_in_workbuddy')
         return 0
     except SetupFailure as error:
