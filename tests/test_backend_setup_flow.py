@@ -114,6 +114,58 @@ def payload(result):
 
 
 class SetupTest(unittest.TestCase):
+    def test_different_drives_are_allowed_but_source_subdirectories_are_rejected(self):
+        with reader() as (root, package, cp, env, base):
+            source, adapted = setup_fixture(root, env)
+            runtime = root / 'runtime'
+            adapter = Path(adapted['PYTHONPATH']) / 'sitecustomize.py'
+            with adapter.open('a') as stream:
+                stream.write('''
+# Simulate only Windows' cross-drive commonpath behavior at the OS boundary.
+real_commonpath = os.path.commonpath
+def commonpath(paths):
+    if tuple(paths) == (os.environ['DAILY_SYNTHETIC_SOURCE'], os.environ['DAILY_SYNTHETIC_OUTPUT']):
+        import ntpath
+        return ntpath.commonpath(('F:\\\\wechat\\\\db_storage', 'C:\\\\daily'))
+    return real_commonpath(paths)
+os.path.commonpath = commonpath
+''')
+            adapted = dict(adapted, DAILY_SYNTHETIC_SOURCE=str(source.resolve()),
+                           DAILY_SYNTHETIC_OUTPUT=str(runtime.resolve()))
+            args = ['--auto', '--db-dir', str(source), '--account', 'fixture-account',
+                    '--root', str(runtime), '--groups', GROUPS[0],
+                    '--timezone', 'UTC', '--effective-from', '2026-10-25']
+            configured = setup(package, adapted, *args)
+            self.assertEqual(configured.returncode, 0, configured.stdout + configured.stderr)
+            previous = cp.read_bytes()
+            args[args.index(str(runtime))] = str(source / 'daily')
+            unsafe = setup(package, adapted, *args)
+            self.assertNotEqual(unsafe.returncode, 0)
+            self.assertEqual(payload(unsafe)['code'], 'UNSAFE_DATA_ROOT')
+            self.assertEqual(cp.read_bytes(), previous)
+            self.assertFalse((source / 'daily').exists())
+
+    def test_unused_fts_failures_do_not_block_setup_or_create_fts_copies(self):
+        with reader() as (root, package, cp, env, base):
+            source, adapted = setup_fixture(root, env)
+            key_file = Path(adapted['DAILY_SYNTHETIC_KEY_FIXTURE'])
+            keys = json.loads(key_file.read_text())
+            for rel in ('message/message_fts.db', 'message/message_fts_1.db', 'fts/search.db'):
+                path = source / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'unreadable synthetic optional index')
+                keys[rel] = {'enc_key': bytes(range(32)).hex()}
+            key_file.write_text(json.dumps(keys))
+            result = setup(package, adapted, '--auto', '--db-dir', str(source), '--account', 'fixture-account',
+                           '--root', str(root / 'runtime'), '--groups', GROUPS[0],
+                           '--timezone', 'UTC', '--effective-from', '2026-10-25')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            cfg = json.loads(cp.read_text())
+            snapshot = Path(cfg['paths']['decrypted'])
+            self.assertTrue((snapshot / 'message/message_0.db').is_file())
+            self.assertFalse((snapshot / 'message/message_fts.db').exists())
+            self.assertFalse((snapshot / 'fts').exists())
+
     def test_decryption_failure_never_commits_configuration_or_claims_completion(self):
         with reader() as (root, package, cp, env, base):
             source, adapted = setup_fixture(root, env, broken=True)

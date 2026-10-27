@@ -189,7 +189,12 @@ def main():
             if not root:
                 raise SetupFailure('DATA_ROOT_REQUIRED', 'confirm_external_data_root')
             source_root = os.path.realpath(account['db_dir'])
-            if os.path.commonpath((source_root, os.path.realpath(root))) == source_root:
+            try:
+                inside_source = os.path.commonpath((source_root, os.path.realpath(root))) == source_root
+            except ValueError:
+                # Absolute paths on different Windows drives cannot contain each other.
+                inside_source = False
+            if inside_source:
                 raise SetupFailure('UNSAFE_DATA_ROOT', 'select_directory_outside_wechat_databases')
             token = uuid.uuid4().hex
             stage = Path(root) / '.onboarding' / token

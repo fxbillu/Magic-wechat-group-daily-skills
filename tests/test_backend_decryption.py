@@ -3,6 +3,7 @@ from contextlib import closing
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 import sqlite3
 import struct
@@ -53,6 +54,149 @@ sys.modules[name] = module
 
 
 class DecryptionTest(unittest.TestCase):
+    def test_legacy_fts_updates_do_not_invalidate_core_freshness(self):
+        from datetime import date
+        with reader() as (root, package, cp, env, base):
+            snap, _ = prepare(root, cp)
+            table = 'Msg_' + hashlib.md5(GROUPS[0].encode()).hexdigest()
+            from datetime import datetime
+            with closing(sqlite3.connect(snap / 'message/message_0.db')) as connection:
+                connection.execute(f'UPDATE "{table}" SET create_time=?',
+                                   (int(datetime.combine(date.today(), datetime.min.time()).timestamp()) + 3600,))
+                connection.commit()
+            source = root / 'source'
+            fts = source / 'message/message_fts.db'
+            fts.parent.mkdir(parents=True)
+            fts.write_bytes(b'old optional index')
+            future = time.time() + 600
+            os.utime(fts, (future, future))
+            stamp_path = snap / '.stamp.json'
+            stamp = json.loads(stamp_path.read_text())
+            stamp['source_dir'] = str(source)
+            stamp['files']['message/message_fts.db'] = {'verified_at': stamp['decrypted_at']}
+            stamp_path.write_text(json.dumps(stamp))
+            result = cli(package, env, 'stat', '--chat', GROUPS[0], '--date', date.today().isoformat())
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            core = source / 'message/message_0.db'
+            core.write_bytes(b'core source changed')
+            os.utime(core, (future, future))
+            blocked = cli(package, env, 'stat', '--chat', GROUPS[0], '--date', date.today().isoformat())
+            self.assertEqual(blocked.returncode, 5, blocked.stdout + blocked.stderr)
+
+    def test_empty_or_partly_marked_interrupted_workspace_recovers(self):
+        for signature in (None, 'wechat-group-daily-decrypt-'):
+            with self.subTest(signature=signature), reader() as (root, package, cp, env, base):
+                snap, _ = prepare(root, cp)
+                work = snap / '.decrypt-work'
+                work.mkdir()
+                if signature is not None:
+                    (work / '.format').write_text(signature)
+                result = subprocess.run([sys.executable, '-B', str(package / 'scripts/tools/safe_decrypt.py'),
+                                         '--db-dir', str(root / 'source'), '--output', str(snap), '--rebuild-stamp'],
+                                        env=env, text=True, capture_output=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_restart_reclaims_interrupted_work_without_touching_legacy_files_or_history(self):
+        with reader() as (root, package, cp, env, base):
+            snap, cfg = prepare(root, cp)
+            self.assertEqual(cli(package, env, 'archive', '--config', '--date', DAY).returncode, 0)
+            history = {path: path.read_bytes() for path in Path(cfg['paths']['data']).rglob('*')
+                       if path.is_file() and path.suffix == '.json'}
+            report = Path(cfg['paths']['reports']) / 'historical.html'
+            report.parent.mkdir(parents=True)
+            report.write_text('合成历史日报')
+            original_config = cp.read_bytes()
+            previous = (snap / 'message/message_0.db').read_bytes()
+            legacy = snap / 'message/tmp-legacy.candidate'
+            legacy.write_bytes(b'unknown legacy ownership; preserve')
+            source = root / 'source'
+            key = bytes(range(32))
+            targets = ('contact/contact.db', 'message/message_0.db', 'message/message_1.db')
+            for rel in targets:
+                encrypted_fixture(source / rel, key)
+            keys = root / 'keys.json'
+            keys.write_text(json.dumps({rel: {'enc_key': key.hex()} for rel in targets}))
+            adapted = platform_aes_double(root, env)
+            adapter = Path(adapted['PYTHONPATH']) / 'sitecustomize.py'
+            with adapter.open('a') as stream:
+                stream.write('''
+import os, time
+real_sleep = time.sleep
+def sleep(seconds):
+    real_sleep(30 if seconds == .4 and os.environ.get('DAILY_SYNTHETIC_PAUSE') else seconds)
+time.sleep = sleep
+''')
+            command = [sys.executable, '-B', str(package / 'scripts/tools/safe_decrypt.py'),
+                       '--db-dir', str(source), '--keys', str(keys), '--output', str(snap)]
+            active = subprocess.Popen(command, env=dict(adapted, DAILY_SYNTHETIC_PAUSE='1'),
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                deadline = time.monotonic() + 5
+                while not list(snap.rglob('*.snap')) and active.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertTrue(list(snap.rglob('*.snap')), 'Did not reach the real snapshot step')
+                live_files = {p: p.read_bytes() for p in snap.rglob('*') if p.suffix in ('.snap', '.candidate')}
+                contender = subprocess.run(command, env=adapted, text=True, capture_output=True, timeout=5)
+                self.assertEqual(contender.returncode, 10, contender.stdout + contender.stderr)
+                self.assertIn('DECRYPTION_BUSY', contender.stderr)
+                self.assertTrue(all(path.read_bytes() == data for path, data in live_files.items()))
+                active.kill()
+                active.wait(timeout=5)
+            finally:
+                if active.poll() is None:
+                    active.kill()
+                    active.wait(timeout=5)
+            abandoned = [p for p in snap.rglob('*') if p.suffix in ('.snap', '.candidate') and p != legacy]
+            self.assertTrue(abandoned)
+            self.assertEqual((snap / 'message/message_0.db').read_bytes(), previous)
+            restarted = subprocess.run(command, env=adapted, text=True, capture_output=True, timeout=15)
+            self.assertEqual(restarted.returncode, 0, restarted.stdout + restarted.stderr)
+            self.assertTrue(all(not path.exists() for path in abandoned), 'Interrupted temporary files were not reclaimed')
+            self.assertEqual(legacy.read_bytes(), b'unknown legacy ownership; preserve')
+            self.assertEqual(cp.read_bytes(), original_config)
+            self.assertEqual(report.read_text(), '合成历史日报')
+            self.assertTrue(all(path.read_bytes() == data for path, data in history.items()))
+
+    def test_cleanup_refuses_unmarked_or_linked_workspace(self):
+        for linked in (False, True):
+            with self.subTest(linked=linked), reader() as (root, package, cp, env, base):
+                snap, _ = prepare(root, cp)
+                outside = root / 'unrelated'
+                outside.mkdir()
+                protected = outside / 'tmp-protected.candidate'
+                protected.write_bytes(b'not owned by the decryptor')
+                work = snap / '.decrypt-work'
+                if linked:
+                    work.symlink_to(outside, target_is_directory=True)
+                else:
+                    work.mkdir()
+                    (work / 'tmp-unknown.snap').write_bytes(b'unknown owner')
+                result = subprocess.run([sys.executable, '-B', str(package / 'scripts/tools/safe_decrypt.py'),
+                                         '--db-dir', str(root / 'source'), '--output', str(snap), '--rebuild-stamp'],
+                                        env=env, text=True, capture_output=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('DECRYPTION_IO_ERROR', result.stderr)
+                self.assertEqual(protected.read_bytes(), b'not owned by the decryptor')
+                if not linked:
+                    self.assertEqual((work / 'tmp-unknown.snap').read_bytes(), b'unknown owner')
+
+    def test_optional_failure_does_not_negate_verified_core_success(self):
+        with reader() as (root, package, cp, env, base):
+            snap, _ = prepare(root, cp)
+            source, key = root / 'source', bytes(range(32))
+            targets = ('contact/contact.db', 'message/message_0.db', 'message/message_fts.db')
+            for rel in targets:
+                encrypted_fixture(source / rel, key, valid=not rel.endswith('_fts.db'))
+            keys = root / 'keys.json'
+            keys.write_text(json.dumps({rel: {'enc_key': key.hex()} for rel in targets}))
+            result = subprocess.run([sys.executable, '-B', str(package / 'scripts/tools/safe_decrypt.py'),
+                                     '--db-dir', str(source), '--keys', str(keys), '--output', str(snap),
+                                     '--include-optional'], env=platform_aes_double(root, env),
+                                    text=True, capture_output=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('OPTIONAL_DECRYPTION_FAILED', result.stdout)
+            self.assertTrue((snap / 'message/message_0.db').is_file())
+
     def test_partial_decrypt_failure_keeps_success_snapshot_and_blocks_collection(self):
         with reader() as (root, package, cp, env, base):
             snap, cfg = prepare(root, cp)
@@ -85,9 +229,9 @@ class DecryptionTest(unittest.TestCase):
             source = root / 'source'
             key = bytes(range(32))
             encrypted_fixture(source / 'other/ok.db', key)
-            (source / 'other/ok.db-wal').write_bytes(b'synthetic active WAL')
             keys = root / 'keys.json'
             encrypted_fixture(source / 'contact/contact.db', key)
+            (source / 'contact/contact.db-wal').write_bytes(b'synthetic active WAL')
             encrypted_fixture(source / 'message/message_0.db', key)
             keys.write_text(json.dumps({rel: {'enc_key': key.hex()} for rel in
                                        ('other/ok.db', 'contact/contact.db', 'message/message_0.db')}))
@@ -95,7 +239,7 @@ class DecryptionTest(unittest.TestCase):
                                      '--db-dir', str(source), '--keys', str(keys), '--output', str(snap)],
                                     env=platform_aes_double(root, env), text=True, capture_output=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertTrue((snap / 'other/ok.db').exists(), result.stdout)
+            self.assertFalse((snap / 'other/ok.db').exists(), result.stdout)
             self.assertIn('SOURCE_WAL_OBSERVED', result.stdout)
 
     def test_unkeyed_core_shard_and_rebuilt_stamp_cannot_claim_complete_history(self):
@@ -124,7 +268,8 @@ class DecryptionTest(unittest.TestCase):
             keys = root / 'keys.json'
             keys.write_text(json.dumps({'other/ok.db': {'enc_key': key.hex()}}))
             result = subprocess.run([sys.executable, '-B', str(package / 'scripts/tools/safe_decrypt.py'),
-                                     '--db-dir', str(source), '--keys', str(keys), '--output', str(snap)],
+                                     '--db-dir', str(source), '--keys', str(keys), '--output', str(snap),
+                                     '--only', 'other/ok.db'],
                                     env=platform_aes_double(root, env), text=True, capture_output=True, timeout=15)
             self.assertTrue((snap / 'other/ok.db').exists(), result.stdout + result.stderr)
             self.assertIn('成功 1', result.stdout)

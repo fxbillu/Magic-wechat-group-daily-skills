@@ -1,6 +1,6 @@
 ---
 name: wechat-group-daily
-version: 1.3.0-rc.2
+version: 1.3.0-rc.3
 description: Magic 微信群日报：在本人 Windows 电脑安装、更新或使用本地微信群日报。首次确认账号、包外目录与关注群；按群按日成稿并回看，更新时复用原配置和历史。
 ---
 
@@ -34,6 +34,8 @@ $PY tools/setup.py --auto --account "<完整账号ID>" --db-dir "<本人db_stora
 ```
 
 `--auto` 和交互回车使用同一个包外默认目录；账号和群仍需确认。setup 在新的包外快照目录调用实际 `wcdb_key_tool_windows.py extract` 与 `safe_decrypt.py`，捕获子进程输出，只返回脱敏状态和错误码。解密或选群失败不覆盖旧有效配置/快照；全部通过后原子保存配置并备份原配置。
+
+微信源库和包外数据目录可以位于不同盘符；数据目录仍不能放在微信源库目录内部。已有有效配置日常直接复用，不为升级重复初始化。
 
 未提供群或有歧义时返回稳定 ID 候选和 `resume_token`，不在非交互环境裸输入：
 
@@ -81,6 +83,10 @@ $PY tools/serve.py --port 8765
 ```bash
 $PY tools/safe_decrypt.py --db-dir "<wechat.db_dir>" --keys "<paths.secrets/all_keys.json>" --output "<paths.decrypted>"
 ```
+
+默认仅处理联系人库、会话库及全部实际消息分片，跳过 FTS 全文索引和其他非必要库。消息分片可能包含其他会话，数据库层尚未做到按群解密；后续归档仅提取配置中关注群的指定日期。只有确有可选能力需求时才使用 `--include-optional`；可选库失败单独诊断，核心库缺失或失败仍阻断日报，不能把它当作零消息。
+
+同一解密输出目录使用操作系统文件锁，`DECRYPTION_BUSY` 表示已有任务在运行，应等待该任务结束，不另开循环重试。临时文件集中在带格式标记的 `.decrypt-work/`；下次成功取得锁后回收中断遗留文件，不删除有效数据库、配置、历史素材或日报。旧版散落的 `tmp*.candidate` / `tmp*.snap` 无归属标记，默认保留，不能仅凭文件名、数量或修改时间批量删除。更新前应等待旧版任务结束，新锁无法约束尚未升级的进程。
 
 取钥原始 stdout/stderr 可能含敏感信息，通过 setup 的捕获包装处理，不转发进对话；只引用真实存在的 extract 入口，不引用旧 HANDOFF 的已删除子命令。
 

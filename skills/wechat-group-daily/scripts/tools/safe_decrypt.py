@@ -14,7 +14,7 @@
     python safe_decrypt.py --db-dir <原始 db_storage> --keys all_keys.json --output decrypted
     python safe_decrypt.py --db-dir ... --only message/message_0.db   # 只解一个
 """
-from contextlib import closing
+from contextlib import closing, contextmanager
 import argparse
 import json
 import os
@@ -35,6 +35,87 @@ IV_SZ = 16
 SALT_SZ = 16
 HMAC_SZ = 64
 SQLITE_HDR = b"SQLite format 3\x00"
+
+
+class DecryptionBusy(Exception):
+    pass
+
+
+def clean_work_files(work):
+    """Only our marked workspace's regular temporary files; never follow links."""
+    removed = pending = 0
+    with os.scandir(work) as entries:
+        for entry in entries:
+            if (entry.name.startswith('tmp') and entry.name.endswith(('.candidate', '.snap'))
+                    and entry.is_file(follow_symlinks=False)):
+                try:
+                    os.unlink(entry.path)
+                    removed += 1
+                except OSError:
+                    pending += 1
+    if removed:
+        print(f'[清理] TEMP_FILES_REMOVED：{removed}', flush=True)
+    if pending:
+        print(f'[诊断] TEMP_CLEANUP_PENDING：{pending}', flush=True)
+
+
+@contextmanager
+def decryption_workspace(out_dir):
+    """An OS lease survives no process crash; cleanup and publishing share it.
+
+    The persistent lock file must never be unlinked: two inodes would allow
+    concurrent writers. Legacy loose tmp files have no lease and are preserved.
+    """
+    root = os.path.realpath(os.path.abspath(out_dir))
+    os.makedirs(root, exist_ok=True)
+    lock_path = os.path.join(root, '.decrypt.lock')
+    if os.path.islink(lock_path):
+        raise OSError('UNSAFE_DECRYPT_LOCK')
+    flags = os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0)
+    with os.fdopen(os.open(lock_path, flags, 0o600), 'r+b') as lease:
+        if os.fstat(lease.fileno()).st_size == 0:
+            lease.write(b'0')
+            lease.flush()
+        lease.seek(0)
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(lease.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lease.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise DecryptionBusy() from None
+        work = os.path.join(root, '.decrypt-work')
+        marker = os.path.join(work, '.format')
+        signature = 'wechat-group-daily-decrypt-v1\n'
+        initialize = False
+        if os.path.lexists(work):
+            if not os.path.isdir(work) or os.path.realpath(work) != work or os.path.islink(marker):
+                raise OSError('UNSAFE_DECRYPT_WORKSPACE')
+            entries = set(os.listdir(work))
+            contents = ''
+            if '.format' in entries:
+                with open(marker, encoding='utf-8') as stream:
+                    contents = stream.read(len(signature) + 1)
+            if contents != signature:
+                # A kill before marker creation/flush must not wedge an empty
+                # workspace. Never adopt unmarked directories containing data.
+                if entries <= {'.format'} and signature.startswith(contents):
+                    initialize = True
+                else:
+                    raise OSError('UNRECOGNIZED_DECRYPT_WORKSPACE')
+        else:
+            os.mkdir(work, 0o700)
+            initialize = True
+        if initialize:
+            with open(marker, 'w', encoding='utf-8') as stream:
+                stream.write(signature)
+        clean_work_files(work)
+        try:
+            yield work
+        finally:
+            clean_work_files(work)
 
 
 def aes_cbc_decrypt(key: bytes, iv: bytes, data: bytes) -> bytes:
@@ -198,10 +279,11 @@ def _decrypt_candidate(src: str, dst: str, enc_key: bytes, quiet: bool = False) 
 
 
 
-def decrypt_one(src: str, dst: str, enc_key: bytes, quiet: bool = False) -> dict:
+def decrypt_one(src: str, dst: str, enc_key: bytes, quiet: bool = False,
+                workspace: str | None = None) -> dict:
     """Publish only a validated candidate; failures leave the previous DB intact."""
     os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
-    fd, candidate = tempfile.mkstemp(suffix='.candidate', dir=os.path.dirname(dst))
+    fd, candidate = tempfile.mkstemp(suffix='.candidate', dir=workspace or os.path.dirname(dst))
     os.close(fd)
     try:
         info = _decrypt_candidate(src, candidate, enc_key, quiet)
@@ -228,25 +310,46 @@ def main():
     ap.add_argument("--output", default=None,
                     help="解密产物目录（默认取 config.json 里 paths.decrypted）")
     ap.add_argument("--only", help="只解某个相对路径，如 message/message_0.db")
+    ap.add_argument("--include-optional", action="store_true",
+                    help="额外尝试非日报核心库；失败仅作诊断，不阻断核心库成功")
     ap.add_argument("--rebuild-stamp", action="store_true",
                     help="仅按现有产物重建时间戳，不解密")
     args = ap.parse_args()
 
     out_dir = args.output or settings.decrypted_dir()
 
+    if os.path.realpath(out_dir) == os.path.realpath(args.db_dir):
+        print('[失败] UNSAFE_OUTPUT：解密目录不能覆盖微信源库。', file=sys.stderr)
+        return 2
+    try:
+        with decryption_workspace(out_dir) as workspace:
+            return run_decryption(args, out_dir, workspace)
+    except DecryptionBusy:
+        print('[失败] DECRYPTION_BUSY：此输出目录已有解密任务，请等待该任务结束。', file=sys.stderr)
+        return 10
+    except OSError:
+        print('[失败] DECRYPTION_IO_ERROR：无法安全访问解密工作目录，现有配置和历史保留。', file=sys.stderr)
+        return 1
+
+
+def run_decryption(args, out_dir, workspace):
+    from wechat_data import guard, settings
+
     if args.rebuild_stamp:
-        from wechat_data import guard
         d = guard.rebuild_stamp(out_dir, os.path.abspath(args.db_dir))
         print(f"[时间戳] 重建完成：{d['file_count']} 个文件，基准 {d['decrypted_at_str']}")
         return 0
 
     keys_path = args.keys or settings.keys_file()
-    keys = json.load(open(keys_path, encoding="utf-8"))
+    with open(keys_path, encoding='utf-8') as stream:
+        keys = json.load(stream)
     targets = []
     for rel, val in keys.items():
         if rel.startswith("_"):
             continue
         if args.only and rel.replace("\\", "/") != args.only.replace("\\", "/"):
+            continue
+        if not args.only and not args.include_optional and not guard.is_core(rel.replace('\\', '/')):
             continue
         targets.append((rel, val))
 
@@ -254,7 +357,6 @@ def main():
         print("[错误] 没有可解密的目标")
         return 2
 
-    from wechat_data import guard
     required = guard.required_files(args.db_dir)
     required.update(rel.replace('\\', '/') for rel in keys if not rel.startswith('_')
                     and guard.is_core(rel.replace('\\', '/')))
@@ -270,7 +372,7 @@ def main():
         dst = os.path.join(out_dir, rel)
         print(f'[解密] {rel}', flush=True)
         try:
-            info = decrypt_one(src, dst, bytes.fromhex(val['enc_key']))
+            info = decrypt_one(src, dst, bytes.fromhex(val['enc_key']), workspace=workspace)
         except (OSError, ValueError, KeyError):
             info = {'ok': False, 'reason': '源库或密钥不可用'}
         if info['ok']:
@@ -288,15 +390,21 @@ def main():
             fail += 1
             failures[rel] = 'DECRYPTION_FAILED'
             print(f"   失败: {info['reason']}")
-    stamp = guard.write_stamp(out_dir, files_meta, os.path.abspath(args.db_dir),
-                              required=required, failures=failures)
+    guard.write_stamp(out_dir, files_meta, os.path.abspath(args.db_dir),
+                      required=required, failures=failures)
     coverage = guard.coverage(out_dir)
     if not coverage['complete']:
         fail = max(fail, 1)
         print('[失败] 核心库覆盖未完成，不能作为完整素材快照。')
+    optional_failures = sum(rel not in required and rel != 'invalid-target' for rel in failures)
+    if optional_failures:
+        print(f'[诊断] OPTIONAL_DECRYPTION_FAILED：{optional_failures} 个非核心库失败，不影响核心库判定。')
 
     print(f"完成：成功 {ok}，失败 {fail}")
-    return 0 if fail == 0 else 1
+    # Optional indexes are not evidence for or against daily-report coverage.
+    # An explicitly requested single database must still report its own failure.
+    return 0 if (coverage['complete'] and 'invalid-target' not in failures
+                 and not (args.only and fail)) else 1
 
 
 if __name__ == "__main__":

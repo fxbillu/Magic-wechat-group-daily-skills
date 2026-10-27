@@ -29,9 +29,6 @@ import time
 
 STAMP_NAME = ".stamp.json"
 
-# 影响日报正确性的核心库；朋友圈(sns)、表情(emoticon)等变化不影响内容
-CRITICAL_PREFIXES = ("message/", "contact/", "session/")
-
 # 解密结束后的容忍窗口（秒）。
 #
 # 微信几乎一直在写 message/session 库，解密一结束就可能来一条新消息。窗口原先写死 1 秒，
@@ -277,8 +274,9 @@ def check(db_dir: str, max_age_hours: float = 24.0,
             except OSError:
                 continue
 
-    critical_stale = [f for f in stale
-                      if any(f.startswith(p) for p in CRITICAL_PREFIXES)]
+    # Old stamps may retain skipped FTS files under message/. Use the same
+    # exact core definition as coverage and default decryption.
+    critical_stale = [f for f in stale if is_core(f)]
     fresh = age_h <= max_age_hours and not critical_stale
     if fresh:
         note = f"（另有 {len(stale)} 个非核心库有更新，不影响日报）" if stale else ""
