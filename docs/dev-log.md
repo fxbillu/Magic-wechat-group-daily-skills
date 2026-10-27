@@ -135,3 +135,10 @@
 - Changes: added a standard-library desktop launcher and Windows COM shortcut installation with a locally generated icon; setup and successful resume refresh the single fixed-name shortcut. Added Magic display branding and candidate 1.3.0-rc.2; retained internal Skill ID and data locations for compatibility. Updated the release inventory and active repository references.
 - Validation: three new public-entry checks cover starting/reusing the actual local reader, repeated shortcut installation with Unicode paths through a simulated Windows boundary, and a non-Windows no-op. Full suite: 59 checks, 58 passed and one optional Pillow check skipped on the current interpreter. Node syntax and static release checks passed. A bounded scan of 164 reachable text blobs found no checked credential patterns or committed runtime paths. Windows COM/icon rendering remains for user testing. Actual Windows COM/icon rendering remains for user testing.
 - Repository: live query showed the repository was already public before this update; renamed it to Magic-wechat-group-daily-skills under the user’s explicit request. No credentials or conversation data are intentionally published.
+
+## 2026-10-27 — Move install and update details into the Skill
+
+- Reason: the user requested a short README entry and built-in installation/update instructions, without new scripts or a more complex process.
+- Scope: replace the long README prompt with the agreed short prompt; move Git checkout, Skill loading, local installation notes and update steps into `references/install-and-update.md`; link that branch from SKILL.md and include the reference in the release file list.
+- Decisions: new clones use main; existing clones retain their branch and configuration. Existing initialization, report generation, desktop and scheduling flows are reused. Published candidate tags/ZIPs remain unchanged; this documentation update is available through Git.
+- Verification: local Markdown references, README image audit, static package check and whitespace check. No runtime code or new test framework was introduced.

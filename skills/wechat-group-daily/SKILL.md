@@ -1,7 +1,7 @@
 ---
 name: wechat-group-daily
 version: 1.3.0-rc.2
-description: Magic 微信群日报：在本人 Windows 微信数据所在电脑首次配置或生成指定群、指定日期的独立日报，支持补跑与本机历史阅读。首次调用通过 WorkBuddy 对话确认账号、包外目录和稳定群 ID；模型依冻结来源写稿，工具核验与渲染，不跨群汇总。
+description: Magic 微信群日报：在本人 Windows 电脑安装、更新或使用本地微信群日报。首次确认账号、包外目录与关注群；按群按日成稿并回看，更新时复用原配置和历史。
 ---
 
 # Magic 微信群日报
@@ -9,6 +9,10 @@ description: Magic 微信群日报：在本人 Windows 微信数据所在电脑�
 为用户确认的每个关注群、每个指定自然日生成独立日报，并在本机阅读。使用原 Windows 取钥、解密、采集、宿主模型写稿、验稿和 HTML/可选 PNG 渲染路径。首次初始化与任务复建按本文执行，不新建模型 API 账号。
 
 命令使用同一个 Python ≥3.11 解释器 `$PY`，工作目录为本 Skill 的 `scripts/`（或给脚本绝对路径）。配置默认在 Windows `%LOCALAPPDATA%\WeChatGroupDaily\config.json`，也可用 `WECHAT_DAILY_CONFIG` 指定包外配置。运行数据和密钥均在用户确认的包外目录；密钥只留本机受控文件，不让用户粘贴或回传。
+
+## 安装、加载或更新
+
+首次从 GitHub 安装、尚未加载 Skill，或用户说“更新 Magic 微信群日报”时，先读取并执行 [安装与更新说明](references/install-and-update.md)。完成后进入下方初始化或日常出报；已有有效配置直接复用。
 
 ## 首次在 WorkBuddy 对话调用
 
