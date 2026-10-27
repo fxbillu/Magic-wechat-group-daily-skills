@@ -1,6 +1,6 @@
 # 依赖与能力检查
 
-1.3.0 以 candidate 形式交付：开发侧必要检查通过即可上传私有 GitHub 并供用户在 Windows 试用；真机兼容、实际取数与自动执行结果随后反馈。文本日报主线不安装语音模型。
+1.3.0 以 candidate 形式公开交付，供用户在 Windows 试用；开发检查不代替真机兼容、实际取数与自动执行。文本日报主线不安装语音模型。
 所有命令从 Skill 根目录执行；请使用 WorkBuddy 确认的同一 Python 解释器。
 
 ```powershell
@@ -38,5 +38,24 @@ WAL 的存在与大小作为待 Windows 核实的诊断项，不作为尝试正�
 
 任何缺失依赖先报告，让使用者决定是否安装；这份检查不自动执行 pip、npm、管理员提权或调试器。
 取钥工具的研究性 debugger 路线不属于本轮主线，不能据上游宣传推断当前微信版本兼容。
+
+## 外部运行时的许可边界
+
+下列项目不在 ZIP 中，不由本项目 MIT 重新授权。2026-10-27 查阅官方入口／PyPI 元数据；这不是使用者实际环境的完整 SBOM，也不锁定或升级任何版本。打包运行环境、容器、安装器或模型时，必须另核实际版本和其传递依赖。
+
+| 外部组件 | 许可入口与注意事项 |
+|---|---|
+| Python／SQLite | [Python 许可](https://docs.python.org/3/license.html)；Python 发行版内含各自第三方声明，不能只保留本项目 MIT |
+| Node | [Node LICENSE](https://github.com/nodejs/node/blob/main/LICENSE)，包括 Node 及捆绑第三方组件声明；本项目只调用环境中的可执行程序 |
+| Windows CNG、微信、WorkBuddy、Edge／Chrome | 各自操作系统／软件／服务条款；不是随包开源组件，没有由本项目授予的再分发权 |
+| cryptography | [官方许可](https://cryptography.io/en/latest/faq/#what-license-is-cryptography-under)，Apache-2.0 或 BSD-3-Clause；wheel 内部 OpenSSL 等另有声明 |
+| Pillow | [官方许可证](https://github.com/python-pillow/Pillow/blob/main/LICENSE)；不同历史版本及捆绑图像库需分别核对，不能假设只有项目 MIT |
+| pilk | [PyPI](https://pypi.org/project/pilk/)、[源码许可证](https://github.com/foyoux/pilk/blob/master/LICENSE)；0.2.4 元数据分类为 GPLv3，源码也附 GPLv3 全文。其 SILK 代码及组合／再分发义务单独适用，不提供“可按 MIT 闭源商用”的保证；未安装、打包或执行 |
+| CTranslate2／faster-whisper | [CTranslate2 许可](https://github.com/OpenNMT/CTranslate2/blob/master/LICENSE)、[faster-whisper 许可](https://github.com/SYSTRAN/faster-whisper/blob/master/LICENSE)，MIT；传递依赖与模型权重独立核查 |
+| torch | [PyTorch LICENSE](https://github.com/pytorch/pytorch/blob/main/LICENSE)，包括多项第三方许可；本项目可选资源释放调用不意味着复制或分发 torch |
+| opencc-python-reimplemented | [PyPI](https://pypi.org/project/opencc-python-reimplemented/)、[源码](https://github.com/yichen0831/opencc-python)，元数据为 Apache；以实际版本附带许可文本为准 |
+| Whisper 模型权重 | [faster-whisper-base 模型说明](https://huggingface.co/Systran/faster-whisper-base)，模型与运行库许可分别确认。主线与能力检查均不下载模型 |
+
+主线无 CDN 字体、图标或前端脚本依赖；系统字体由使用者环境提供，未嵌入报告安装包。
 Node 官方文档说明 Zstd API 的可用性随版本变化，因此以真实桥接向量为判断依据：[Node Zlib](https://nodejs.org/api/zlib.html#zlibzstddecompresssyncbuffer-options)。
 AES 向量出处：[NIST SP 800-38A](https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf)，F.2.5/F.2.6。

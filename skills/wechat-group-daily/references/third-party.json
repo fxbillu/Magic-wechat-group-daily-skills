@@ -17,8 +17,19 @@
       "license": "MIT",
       "license_file": "licenses/wcdb-key-tool-MIT.txt",
       "sha256": {
-        "scripts/tools/wcdb_key_tool_windows.py": "8b82b2e1fc42296d0d9a2fbeb0bb2dea32b2dac834fb8f72a419b7e39722218c",
-        "licenses/wcdb-key-tool-MIT.txt": "098659c726e64afd1c503227c1f13866a3ae55a533744185d953828f37c54d8e"
+        "scripts/tools/wcdb_key_tool_windows.py": "07684bba9f215713aa74d7c8360053adc6802162d2a75d01d49da9310ab71388",
+        "licenses/wcdb-key-tool-MIT.txt": "098659c726e64afd1c503227c1f13866a3ae55a533744185d953828f37c54d8e",
+        "scripts/tools/safe_decrypt.py": "08c4f8417a5f805897ca18db07190ccd9d11acade2747cfc620b1251c6549173"
+      }
+    },
+    {
+      "id": "wechatdaily",
+      "source": "https://github.com/Bryan-Cyf/WeChatDaily/tree/88d261a3e9954e0ed44edb0a247260c509d0022e",
+      "license": "MIT",
+      "license_file": "licenses/wechatdaily-MIT.txt",
+      "scope": "reference-and-conservative-attribution",
+      "sha256": {
+        "licenses/wechatdaily-MIT.txt": "bcbced38ed817462b4db5894139c894b5db31b2d4e817abe7b46dcd61c9b65f4"
       }
     }
   ]

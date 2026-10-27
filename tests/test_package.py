@@ -117,6 +117,10 @@ class PackageTest(unittest.TestCase):
             archive.extractall(self.root / 'expanded')
         skill = self.root / 'expanded/wechat-group-daily'
         self.assertTrue((skill / 'scripts/web/vendor/vue.global.prod.js').is_file())
+        self.assertEqual((skill / 'LICENSE.txt').read_bytes(), (REPO / 'LICENSE').read_bytes())
+        for relative in ('NOTICE.md', 'DISCLAIMER.md', 'licenses/wechatdaily-MIT.txt',
+                         'references/source-provenance.json'):
+            self.assertTrue((skill / relative).is_file(), relative)
         icon = (skill / 'scripts/assets/magic-reader.ico').read_bytes()
         self.assertEqual(struct.unpack_from('<HHH', icon), (0, 1, 7))
         sizes = set()
@@ -289,6 +293,59 @@ class PackageTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertIn('MANIFEST_INVALID', result.stdout)
                 self.assertFalse((self.root / 'incomplete.zip').exists())
+
+    def test_legal_documents_cannot_be_dropped_from_disk_or_inventory(self):
+        manifest_path = self.skill / 'references/release-files.json'
+        original_manifest = manifest_path.read_text(encoding='utf-8')
+        for relative in ('LICENSE.txt', 'NOTICE.md', 'DISCLAIMER.md',
+                         'licenses/wechatdaily-MIT.txt', 'references/source-provenance.json'):
+            with self.subTest(relative=relative):
+                path = self.skill / relative
+                content = path.read_bytes()
+                path.unlink()
+                result = self.run_cli('--build', '--output', self.root / 'incomplete.zip')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('MISSING_FILE', result.stdout)
+                path.write_bytes(content)
+                manifest = json.loads(original_manifest)
+                manifest['files'].remove(relative)
+                manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
+                result = self.run_cli('--build', '--output', self.root / 'incomplete.zip')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('MANIFEST_INVALID', result.stdout)
+                self.assertFalse((self.root / 'incomplete.zip').exists())
+                manifest_path.write_text(original_manifest, encoding='utf-8')
+
+    def test_uncovered_or_ambiguous_source_and_blank_legal_text_block_release(self):
+        path = self.skill / 'references/source-provenance.json'
+        original = path.read_text(encoding='utf-8')
+        for mode in ('missing', 'duplicate', 'unresolved', 'wrong_license'):
+            with self.subTest(mode=mode):
+                record = json.loads(original)
+                group = record['groups'][0]
+                if mode == 'missing':
+                    group['files'].pop()
+                elif mode == 'duplicate':
+                    record['groups'][1]['files'].append(group['files'][0])
+                elif mode == 'unresolved':
+                    group['rights_basis'] = 'unknown'
+                else:
+                    record['groups'][-1]['license_file'] = 'LICENSE.txt'
+                path.write_text(json.dumps(record), encoding='utf-8')
+                result = self.run_cli('--build', '--output', self.root / 'unreviewed.zip')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('SOURCE_PROVENANCE_INVALID', result.stdout)
+                self.assertFalse((self.root / 'unreviewed.zip').exists())
+        path.write_text(original, encoding='utf-8')
+        for relative in ('LICENSE.txt', 'NOTICE.md', 'DISCLAIMER.md'):
+            with self.subTest(empty=relative):
+                legal = self.skill / relative
+                content = legal.read_bytes()
+                legal.write_text(' \n', encoding='utf-8')
+                result = self.run_cli('--build', '--output', self.root / 'unreviewed.zip')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('SOURCE_PROVENANCE_INVALID', result.stdout)
+                legal.write_bytes(content)
 
     def test_t1_collection_and_report_records_cannot_be_whitelisted(self):
         self.align_test_versions()

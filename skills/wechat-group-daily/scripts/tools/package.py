@@ -30,6 +30,8 @@ RUNTIME_NAMES = {'config.json', 'all_keys.json', '.stamp.json', '.env', 'data', 
                  'collections', 'report-records', 'daily-state'}
 # These cannot be made optional by deleting a line from the release inventory.
 ESSENTIAL = {
+    'LICENSE.txt', 'NOTICE.md', 'DISCLAIMER.md', 'references/source-provenance.json',
+    'licenses/wechatdaily-MIT.txt',
     'SKILL.md', 'VERSION', MANIFEST, 'references/writing-spec.md',
     'references/dependencies.md', 'references/third-party.md', 'references/third-party.json',
     'references/windows-acceptance.md', 'licenses/vue-MIT.txt', 'licenses/wcdb-key-tool-MIT.txt',
@@ -133,7 +135,7 @@ def third_party(root, files):
         components = document['components']
         if document['schema_version'] != 1 or not isinstance(components, list):
             raise ValueError()
-        if sorted(c['id'] for c in components) != ['vue', 'wcdb-key-tool']:
+        if sorted(c['id'] for c in components) != ['vue', 'wcdb-key-tool', 'wechatdaily']:
             raise ValueError()
         for component in components:
             hashes = component['sha256']
@@ -152,6 +154,58 @@ def third_party(root, files):
     except (OSError, ValueError, TypeError, KeyError):
         problems.append('THIRD_PARTY_INVALID')
     return problems
+
+
+def source_provenance(root, files):
+    """Every shipped file needs a reviewed rights basis, including legal texts.
+
+    This checks inventory coverage, not the truth of a copyright declaration.
+    Public-source comparisons and maintainer authority are recorded in the audit.
+    """
+    try:
+        record = json.loads((root / 'references/source-provenance.json').read_text(encoding='utf-8'))
+        if (record['schema_version'] != 1 or record['project_license'] != 'MIT'
+                or record['project_license_file'] != 'LICENSE.txt'
+                or record['maintainer_authorization']['type'] != 'maintainer-confirmation'):
+            raise ValueError()
+        groups = record['groups']
+        if not isinstance(groups, list) or not groups:
+            raise ValueError()
+        ids, covered = set(), set()
+        for group in groups:
+            paths = group['files']
+            if (not isinstance(group['id'], str) or group['id'] in ids
+                    or group['license'] != 'MIT' or group['license_file'] not in files
+                    or not isinstance(paths, list) or not paths
+                    or any(not isinstance(p, str) for p in paths)
+                    or len(paths) != len(set(paths)) or covered.intersection(paths)
+                    or not group['source'].startswith('https://')):
+                raise ValueError()
+            if group['origin'] == 'maintainer':
+                if (group['rights_basis'] != 'maintainer-confirmation'
+                        or group['license_file'] != 'LICENSE.txt'):
+                    raise ValueError()
+            elif group['origin'] in {'third-party', 'third-party-derived'}:
+                if group['rights_basis'] != 'upstream-license':
+                    raise ValueError()
+                components = json.loads((root / 'references/third-party.json').read_text(encoding='utf-8'))['components']
+                component = next((c for c in components if c['id'] == group['id']), None)
+                if (not component or component['license_file'] != group['license_file']
+                        or component['source'] != group['source'] or set(paths) != set(component['sha256'])):
+                    raise ValueError()
+            else:
+                raise ValueError()
+            ids.add(group['id'])
+            covered.update(paths)
+        if covered != files or not {'vue', 'wcdb-key-tool', 'wechatdaily'} <= ids:
+            raise ValueError()
+        # Do not let a present but accidentally emptied legal document pass.
+        for rel in ('LICENSE.txt', 'NOTICE.md', 'DISCLAIMER.md'):
+            if not (root / rel).read_text(encoding='utf-8').strip():
+                raise ValueError()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return ['SOURCE_PROVENANCE_INVALID']
+    return []
 
 
 class AssetReferences(HTMLParser):
@@ -231,6 +285,7 @@ def audit(root, files):
         return problems
     problems.extend(references(root, files))
     problems.extend(third_party(root, files))
+    problems.extend(source_provenance(root, files))
     problems.extend(config_template(root))
     return problems
 

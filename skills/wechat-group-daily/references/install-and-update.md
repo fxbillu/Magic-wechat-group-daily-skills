@@ -2,6 +2,8 @@
 
 供 WorkBuddy 在首次安装、重新加载或用户要求更新 Magic 微信群日报时读取。执行完成后回到 [SKILL.md](../SKILL.md) 的初始化或日常出报流程，复用已有配置。
 
+随程序保留 [MIT 许可证](../LICENSE.txt)、[第三方声明](../NOTICE.md)、[使用边界与免责声明](../DISCLAIMER.md) 及 `licenses/` 全部许可文本。更新到 rc.7 不重新初始化或迁移个人资料；首次处理数据时按 SKILL 说明数据处理边界，已有授权不重复询问。
+
 ## 首次从 GitHub 安装
 
 1. 仓库为 `https://github.com/fxbillu/Magic-wechat-group-daily-skills.git`。在合适的本地目录执行 `git clone`；默认使用 `main`，已有克隆则复用并保留其当前分支。缺 Git 或需要用户完成登录/权限操作时说明具体下一步。

@@ -1,6 +1,6 @@
 ---
 name: wechat-group-daily
-version: 1.3.0-rc.6
+version: 1.3.0-rc.7
 description: Magic 微信群日报：在本人 Windows 电脑安装、更新或使用本地微信群日报。首次确认账号、包外目录与关注群；按群按日成稿并回看，更新时复用原配置和历史。
 ---
 
@@ -15,6 +15,8 @@ description: Magic 微信群日报：在本人 Windows 电脑安装、更新或�
 首次从 GitHub 安装、尚未加载 Skill，或用户说“更新 Magic 微信群日报”时，先读取并执行 [安装与更新说明](references/install-and-update.md)。完成后进入下方初始化或日常出报；已有有效配置直接复用。
 
 ## 首次在 WorkBuddy 对话调用
+
+首次处理数据前，读取并向使用者简要说明 [使用边界与免责声明](DISCLAIMER.md)：本人及有权处理的数据、宿主模型可能向云端发送内容、共享分片的明文范围、分享前脱敏与 AI 结论复核。沿用本次对话已有授权，不重复要求确认。软件按 [MIT](LICENSE.txt) 提供；第三方归属与可选运行时许可见 [NOTICE](NOTICE.md)。
 
 上传本身没有经过验证的自动执行钩子。首次对话调用先检查：
 

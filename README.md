@@ -54,7 +54,7 @@ https://github.com/fxbillu/Magic-wechat-group-daily-skills
 按照仓库说明加载微信群日报 Skill，带我完成初始化、生成首份日报，并配置每日任务。已有安装则更新，保留原配置和历史。
 ```
 
-也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.6) 导入 WorkBuddy。
+也可以下载 [候选 ZIP](https://github.com/fxbillu/Magic-wechat-group-daily-skills/releases/tag/v1.3.0-rc.7) 导入 WorkBuddy。
 
 ## 桌面快捷方式
 
@@ -88,6 +88,8 @@ Windows 初始化保存配置时，会创建带报纸图标的 **Magic 群日报
 
 ## 免责声明
 
+完整 [使用边界、数据处理与免责声明](skills/wechat-group-daily/DISCLAIMER.md) 已随安装包提供，可离线阅读。
+
 本项目是独立的社区项目，非微信、WeChat 或 WorkBuddy 官方产品，不代表腾讯或相关服务提供方，也不表示获得其授权或背书。相关名称和商标归各自权利人所有。
 
 项目按现状提供，不对兼容性、持续可用性、消息覆盖完整性、日报准确性或定时任务准点执行作出保证。微信、WorkBuddy、模型服务或运行环境的变化都可能影响使用。AI 总结可能遗漏、误解或错误归因；引用、署名、项目状态及重要结论应核对原始消息，并向相关人员确认。
@@ -95,6 +97,14 @@ Windows 初始化保存配置时，会创建带报纸图标的 **Magic 群日报
 请自行评估数据读取、解密、模型处理和内容分享带来的隐私、保密、账号及数据安全风险，备份重要数据，并遵守适用法律法规和平台协议。本说明不替代必要的数据授权，也不改变适用法律规定的各方责任。第三方组件遵循各自许可证；再分发、二次开发或商业使用前，请核对[第三方来源与许可](skills/wechat-group-daily/references/third-party.md)及相关授权范围。
 
 rc.5 的每日一次路径已通过三个聚焦 CLI 场景：时间边界/重复与出报、首次失败后接续、旧归档及旧日报保留。同事在 Windows 安装后，以真实取数、打开 HTML/PNG 和历史回看确认可用，无需先安装 pytest 或运行开发测试。
+
+## 许可证与第三方来源
+
+本项目自有代码与文档采用 [MIT 许可证](LICENSE)：允许使用、修改、分发和商业使用，须保留版权及许可声明；不提供许可证所列保证。版权标识为 fxbillu and Magic WeChat Group Daily contributors。
+
+第三方组件保留各自版权及许可，见 [NOTICE](NOTICE.md) 和 [来源清单](skills/wechat-group-daily/references/third-party.md)。Vue、wcdb-key-tool 和 WeChatDaily 的 MIT 文本均随包提供；可选语音 pilk 使用 GPLv3，运行库和模型不随包分发，不能把完整语音环境统称为 MIT。软件许可不授予聊天内容、账号、商标或第三方服务的权利。
+
+[来源与开发过程审查](docs/reviews/2026-10-27-license-audit.md) 记录了导入哈希、Git 开发、第三方比对和维护者授权依据；旧电脑上未留存的初始生成记录不能据此补证。rc.7 补齐随包声明与打包检查，保留 rc.6 功能、原配置和历史。
 
 ## 开发与文档
 

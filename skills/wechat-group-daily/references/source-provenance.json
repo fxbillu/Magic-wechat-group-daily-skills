@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-27",
+  "project_license": "MIT",
+  "project_license_file": "LICENSE.txt",
+  "maintainer_authorization": {
+    "type": "maintainer-confirmation",
+    "date": "2026-10-27",
+    "scope": "Maintainer states non-third-party baseline and subsequent WorkBuddy/Codex development are self-authored and authorizes MIT publication. Not an independent reconstruction of all original sessions.",
+    "evidence": "https://github.com/fxbillu/Magic-wechat-group-daily-skills/blob/main/docs/reviews/2026-10-27-license-audit.md"
+  },
+  "groups": [
+    {
+      "id": "maintainer-import",
+      "origin": "maintainer",
+      "license": "MIT",
+      "license_file": "LICENSE.txt",
+      "rights_basis": "maintainer-confirmation",
+      "source": "https://github.com/fxbillu/Magic-wechat-group-daily-skills/commit/bf0d3bec202a2e9d3216cd354726f343a8653243",
+      "files": [
+        "CHANGELOG.md",
+        "SKILL.md",
+        "VERSION",
+        "references/writing-spec.md",
+        "scripts/config.example.json",
+        "scripts/fetch.py",
+        "scripts/lib/wechat_data/__init__.py",
+        "scripts/lib/wechat_data/archive.py",
+        "scripts/lib/wechat_data/avatar.py",
+        "scripts/lib/wechat_data/chat.py",
+        "scripts/lib/wechat_data/config.py",
+        "scripts/lib/wechat_data/content.py",
+        "scripts/lib/wechat_data/db.py",
+        "scripts/lib/wechat_data/guard.py",
+        "scripts/lib/wechat_data/material.py",
+        "scripts/lib/wechat_data/messages.py",
+        "scripts/lib/wechat_data/render.py",
+        "scripts/lib/wechat_data/settings.py",
+        "scripts/lib/wechat_data/voice.py",
+        "scripts/tools/check_story.py",
+        "scripts/tools/doctor.py",
+        "scripts/tools/package.py",
+        "scripts/tools/render_daily.py",
+        "scripts/tools/serve.py",
+        "scripts/tools/setup.py",
+        "scripts/tools/zstd_bridge.js",
+        "scripts/web/app.css",
+        "scripts/web/app.js",
+        "scripts/web/index.html"
+      ]
+    },
+    {
+      "id": "maintainer-development",
+      "origin": "maintainer",
+      "license": "MIT",
+      "license_file": "LICENSE.txt",
+      "rights_basis": "maintainer-confirmation",
+      "source": "https://github.com/fxbillu/Magic-wechat-group-daily-skills",
+      "files": [
+        "DISCLAIMER.md",
+        "LICENSE.txt",
+        "NOTICE.md",
+        "references/analysis.md",
+        "references/dependencies.md",
+        "references/install-and-update.md",
+        "references/release-files.json",
+        "references/scheduling.md",
+        "references/source-provenance.json",
+        "references/third-party.json",
+        "references/third-party.md",
+        "references/windows-acceptance.md",
+        "scripts/assets/magic-reader.ico",
+        "scripts/assets/magic-reader.svg",
+        "scripts/assets/report-layout.css",
+        "scripts/lib/wechat_data/analysis.py",
+        "scripts/lib/wechat_data/capabilities.py",
+        "scripts/lib/wechat_data/collection.py",
+        "scripts/lib/wechat_data/daily.py",
+        "scripts/lib/wechat_data/desktop.py",
+        "scripts/lib/wechat_data/readiness.py",
+        "scripts/lib/wechat_data/report_layout.py",
+        "scripts/tools/desktop.py"
+      ]
+    },
+    {
+      "id": "vue",
+      "origin": "third-party",
+      "license": "MIT",
+      "license_file": "licenses/vue-MIT.txt",
+      "rights_basis": "upstream-license",
+      "source": "https://github.com/vuejs/core/tree/bf5f0dd877dd3c23ce85c2cbc1dd771567e84c8c",
+      "files": [
+        "scripts/web/vendor/vue.global.prod.js",
+        "licenses/vue-MIT.txt"
+      ]
+    },
+    {
+      "id": "wcdb-key-tool",
+      "origin": "third-party-derived",
+      "license": "MIT",
+      "license_file": "licenses/wcdb-key-tool-MIT.txt",
+      "rights_basis": "upstream-license",
+      "source": "https://github.com/TANGandXUE/wcdb-key-tool/tree/79f1b5b92e12c66aa281b4a60a3c478b5f547dfa",
+      "files": [
+        "scripts/tools/wcdb_key_tool_windows.py",
+        "scripts/tools/safe_decrypt.py",
+        "licenses/wcdb-key-tool-MIT.txt"
+      ]
+    },
+    {
+      "id": "wechatdaily",
+      "origin": "third-party",
+      "license": "MIT",
+      "license_file": "licenses/wechatdaily-MIT.txt",
+      "rights_basis": "upstream-license",
+      "source": "https://github.com/Bryan-Cyf/WeChatDaily/tree/88d261a3e9954e0ed44edb0a247260c509d0022e",
+      "files": [
+        "licenses/wechatdaily-MIT.txt"
+      ]
+    }
+  ]
+}

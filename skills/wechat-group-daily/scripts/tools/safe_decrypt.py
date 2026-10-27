@@ -1,5 +1,10 @@
 """带一致性保证的数据库解密
 
+CNG/AES/HMAC 与页解密部分保守按 wcdb-key-tool 衍生实现归属：
+Copyright (c) 2025 CloudDreamAI / TANGandXUE. MIT License.
+https://github.com/TANGandXUE/wcdb-key-tool/tree/79f1b5b92e12c66aa281b4a60a3c478b5f547dfa
+完整许可见 ../../licenses/wcdb-key-tool-MIT.txt；本地流程修改见 ../../NOTICE.md。
+
 修复原解密流程的静默错误：原实现直接逐页读源库，微信同时在写，
 产物可能混合两个时刻的页，轻则读到旧数据，重则 SQLite 报损坏。
 

@@ -3,12 +3,14 @@
 
 Windows 微信数据库密钥提取工具。完整支持仍在进程内存里缓存明文 raw key
 的微信版本（4.0.x 一代）。微信 4.1+ 以后，主路径改为只读运行时
-`Config.Cipher` 扫描 + HMAC 校验；`capture-experimental` 仅保留为研究性备用
-路线，不是主路径。
+`Config.Cipher` 扫描 + HMAC 校验。本地分发版删除了实验性 debugger 路线。
+
+Copyright (c) 2025 CloudDreamAI / TANGandXUE. MIT License.
+上游核查点：79f1b5b92e12c66aa281b4a60a3c478b5f547dfa。
+许可全文：../../licenses/wcdb-key-tool-MIT.txt；本地修改见 ../../NOTICE.md。
 
 Usage:
     python3 wcdb_key_tool_windows.py extract              # 提取密钥（优先 runtime 扫描，老版本回退内存扫描）
-    python3 wcdb_key_tool_windows.py capture-experimental  # [研究性备用] 断点抓 passphrase
     python3 wcdb_key_tool_windows.py set-passphrase <64位hex>  # 手动填入已获取的 passphrase
     python3 wcdb_key_tool_windows.py decrypt               # 解密数据库
     python3 wcdb_key_tool_windows.py extract --decrypt     # 提取 + 解密一步完成
@@ -17,8 +19,6 @@ Requirements:
     - Python 3.10+（本工具只用 Windows 自带的 bcrypt.dll，无需第三方加密库；
       但整包的其他环节要求 3.11+，见 SKILL.md §0）
     - 建议以管理员身份运行（读取其他进程内存需要足够权限）
-    - capture-experimental 需要 cdb.exe（"Debugging Tools for Windows"，
-      Windows SDK 的可选组件，或随 WinDbg 安装）
 
 https://github.com/TANGandXUE/wcdb-key-tool
 """
