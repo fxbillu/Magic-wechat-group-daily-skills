@@ -100,23 +100,44 @@ def save(cfg: dict, date: str, chat, msgs, stats, start, end, *, period_mode=Non
 
 
 def revise_material(cfg: dict, date: str, payload: dict) -> None:
-    """Save a text revision without inventing a new collection attempt."""
+    """Persist a recoverable text revision without a new collection attempt."""
+    previous = payload['collection']['revision']
+    current = collection.revision(payload)
+    payload['collection'] = dict(payload['collection'], revision=current)
+    payload['voice_revision'] = {'pending': True, 'previous_revision': previous, 'revision': current}
+    _atomic_write(archive_path(cfg, date, payload['chat']['username']), payload)
+    resume_voice_revision(cfg, date, payload)
+
+
+def resume_voice_revision(cfg: dict, date: str, payload: dict) -> bool:
+    """Idempotently finish an interrupted JSON → index → pending-state revision."""
+    marker = payload.get('voice_revision') or {}
+    if marker.get('pending') is not True:
+        return False
+    successful = payload.get('collection') or {}
+    current = marker.get('revision')
+    if current != successful.get('revision') or current != collection.revision(payload):
+        raise ValueError('VOICE_REVISION_INVALID')
     username = payload['chat']['username']
-    old_revision = payload['collection']['revision']
-    new_revision = collection.revision(payload)
-    payload['collection'] = dict(payload['collection'], revision=new_revision)
-    path = archive_path(cfg, date, username)
-    _atomic_write(path, payload)
     attempt_path = collection.record_path(cfg, 'collections', date, username)
     attempt = collection.read_record(attempt_path)
     latest = attempt.get('collection') or {}
-    if latest.get('state') != 'failed' and latest.get('revision') == old_revision:
-        attempt['collection'] = dict(latest, revision=new_revision)
+    if (latest.get('state') != 'failed'
+            and latest.get('revision') in (marker.get('previous_revision'), current)
+            and latest.get('observed_at') == successful.get('observed_at')
+            and latest.get('range') == successful.get('range')):
+        attempt['collection'] = dict(latest, revision=current)
         _atomic_write(attempt_path, attempt)
-    # Keep observed_at, coverage, latest failed attempt, collect cursor and report links.
+    # Preserve actual coverage, failures, collection timestamps and collect cursors.
+    path = archive_path(cfg, date, username)
     rel = os.path.relpath(path, settings.data_dir(cfg)).replace('\\', '/')
     db.save_archive(cfg, date, payload, rel)
     db.dump_json(cfg)
+    from . import daily
+    daily.revise_material(cfg, date, username, payload)
+    payload['voice_revision'] = dict(marker, pending=False)
+    _atomic_write(path, payload)
+    return True
 
 
 def sources_of_day(cfg, date):

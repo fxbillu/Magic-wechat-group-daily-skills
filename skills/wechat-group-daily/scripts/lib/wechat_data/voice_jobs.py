@@ -384,6 +384,7 @@ def retry_archive(cfg, chat, date):
         payload = archive.load(cfg, date, chat)
         if not payload:
             raise ValueError('VOICE_ARCHIVE_NOT_FOUND')
+        recovered = archive.resume_voice_revision(cfg, date, payload)
         selected = [(index, item) for index, item in enumerate(payload['messages'])
                     if item.get('type') == 'voice' and
                     (item.get('voice') or {}).get('transcription', {}).get('state') != 'transcribed']
@@ -412,7 +413,6 @@ def retry_archive(cfg, chat, date):
             if changed:
                 payload['stats']['chars'] += added_chars
                 archive.revise_material(cfg, date, payload)
-                daily.revise_material(cfg, date, chat, payload)
-        return {'state': 'updated' if changed else 'unchanged', 'date': date,
+        return {'state': 'updated' if changed else ('recovered' if recovered else 'unchanged'), 'date': date,
                 'revision': (payload.get('collection') or {}).get('revision'),
                 'archive': archive.archive_path(cfg, date, chat), 'voice': summary(payload)}

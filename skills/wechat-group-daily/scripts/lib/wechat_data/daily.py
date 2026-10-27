@@ -133,6 +133,11 @@ def prepare(cfg, until=None, finish=False, reopen=False):
             path = root / (hashlib.sha256(username.encode()).hexdigest() + '.json')
             try:
                 state = load_state(path)
+                previous_date = (state.get('pending') or {}).get('date') or state.get('completed_date')
+                if previous_date:
+                    previous_payload = archive.load(cfg, previous_date, username)
+                    if previous_payload and archive.resume_voice_revision(cfg, previous_date, previous_payload):
+                        state = load_state(path)
                 settled = settle(cfg, username, state)
                 if settled:
                     archive._atomic_write(str(path), state)
