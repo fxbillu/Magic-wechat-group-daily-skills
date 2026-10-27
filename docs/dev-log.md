@@ -359,4 +359,4 @@
 ### Source review follow-up
 
 - Standards axis: no actionable documented-standard violations or baseline smells. Spec axis found two gaps: ordinary re-collection could replace a historical frozen template, and mixed attachments lacked a coverage notice.
-- Fixes: ordinary archive replacement retains its original template; only the existing explicit same-day empty/insufficient `daily --reopen` path refreshes it. Project HTML now also identifies unread attachments/cards, alongside image and failed voice notices. Recheck pending; no runtime tests run.
+- Fixes: ordinary archive replacement retains its original template; only the existing explicit same-day empty/insufficient `daily --reopen` path refreshes it. Project HTML now also identifies unread attachments/cards, alongside image and failed voice notices. Spec source recheck confirmed both gaps closed and found no new regression. Changed Python AST and full package static audit passed; no runtime tests run.
