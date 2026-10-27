@@ -75,10 +75,28 @@ class DailyTest(unittest.TestCase):
             self.assertIn(START, html)
             self.assertIn(END, html)
             self.assertNotIn('模型不能改写', html)
+            protected, published = daily(package, env, '--reopen')
+            self.assertEqual(protected.returncode, 0, protected.stderr)
+            self.assertEqual(published['groups'][0]['state'], 'nothing')
             next_run = cli(package, env, 'daily', '--until', '2026-10-26T21:00:00+00:00')
             item = json.loads(next_run.stdout)['groups'][0]
             self.assertEqual(item['state'], 'insufficient')
             self.assertEqual(item['start'], END)
+            self.assertEqual(len(list(Path(cfg['paths']['reports']).rglob('*.html'))), 1)
+            # A quiet edition is not a published report: allow explicit reopening.
+            extra_time = int(datetime.fromisoformat('2026-10-26T21:30:00+00:00').timestamp())
+            table = 'Msg_' + hashlib.md5(GROUPS[0].encode()).hexdigest()
+            sql_file(snap / 'message/message_0.db', [(f'INSERT INTO {table} VALUES(5,?,2,1,?)',
+                                                    (extra_time, '补入的合成讨论。' * 50))])
+            command = ('daily', '--until', '2026-10-26T22:00:00+00:00')
+            unchanged = cli(package, env, *command)
+            self.assertEqual(json.loads(unchanged.stdout)['groups'][0]['state'], 'nothing')
+            reopened = cli(package, env, *command, '--reopen')
+            self.assertEqual(reopened.returncode, 0, reopened.stdout + reopened.stderr)
+            edition = json.loads(reopened.stdout)['groups'][0]
+            self.assertEqual(edition['state'], 'pending')
+            self.assertEqual(edition['start'], END)
+            self.assertEqual(edition['end'], '2026-10-26T22:00:00+00:00')
             self.assertEqual(len(list(Path(cfg['paths']['reports']).rglob('*.html'))), 1)
 
     def test_first_failed_run_keeps_start_and_only_configured_groups(self):

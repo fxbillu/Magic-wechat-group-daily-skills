@@ -72,6 +72,8 @@ $PY fetch.py daily
 
 读取 JSON 的 `groups`：仅对 `state=pending` 的条目写稿，使用条目的 `archive/date/revision/start/end`；它们是冻结范围，不自行改成“昨天”或“今天”。`nothing` 不重复出报；`empty/insufficient` 如实说明，不硬凑；`failed` 保留结果并处理对应错误。失败后再次调用仍返回原待出报素材，不推进起点。不得调用用户包外的 `next_range.py`；本入口已包含接续与待出报恢复。
 
+素材不足或无消息后，同日需要补报时，先刷新解密，再运行 `fetch.py daily --reopen`；需要纳入稍晚的消息时加 `--until <带时区的ISO截止时间>`。只重新采集该日尚未出报的窗口，从原起点接续，已发布日报不重发。无需删除状态文件。
+
 需要立即试跑到当前时刻时，可在用户确认后使用 `daily --until <带时区的ISO截止时间>`；同一群同一出报日期只保留一份。旧自然日归档与当前窗口冲突时返回 `EXISTING_EDITION_PRESERVED`，保留旧数据；换到下一次计划截止点后接续，不删除旧归档解冲突。
 
 读取工具返回的冻结归档路径，文件名按稳定 ID 散列，不按群名猜路径。准备写稿时读 [日报写作规范](references/writing-spec.md)，读完全部来源后由 **WorkBuddy 当前对话模型** 写 story.json，绑定返回条目的 `username/date/source_revision`（`revision` 即归档的 `collection.revision`）。引用使用同一条消息的原句、作者与可用 `message_id`；同名作者需用来源 ID 区分。一个群一份，保留规范中的报道文风、字数、人物选择和人工内容检查。

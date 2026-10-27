@@ -37,6 +37,32 @@ def check(package, env, arc, draft):
 
 
 class StoryTest(unittest.TestCase):
+    def test_density_preserves_dates_across_midnight(self):
+        with reader() as (root, package, cp, env, base):
+            arc, draft, source, story = manuscript(root)
+            source['range'] = {'start': '2026-10-24T21:00:00+08:00', 'end': '2026-10-25T21:00:00+08:00'}
+            source['messages'][0]['time'] = '2026-10-24 23:10:00'
+            source['messages'][1]['time'] = '2026-10-25 00:10:00'
+            for hour, sender, user, text in (
+                    ('2026-10-24 23:15:00', '成员甲', 'wxid_alpha', '事实' * 100),
+                    ('2026-10-25 00:15:00', '成员乙', 'wxid_beta', '讨论' * 100),
+                    ('2026-10-25 08:10:00', '成员乙', 'wxid_beta', '结果' * 100)):
+                source['messages'].append({'time': hour, 'sender': sender, 'sender_id': user,
+                                           'type': 'text', 'text': text})
+            total = sum(len(m['text']) for m in source['messages'])
+            source['stats'].update(total=5, chars=total)
+            story['stats'].update(total_messages=5, total_chars=total)
+            arc.write_text(json.dumps(source))
+            for times in (('2026-10-24 23:00', '2026-10-25 00:00', '2026-10-25 08:00'),
+                          ('23:00', '00:00', '08:00')):
+                for node, hour in zip(story['timeline'], times):
+                    node['time'] = hour
+                draft.write_text(json.dumps(story))
+                result = check(package, env, arc, draft)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotRegex(result.stdout, r'源\s+0 字')
+                self.assertNotIn('源字数少而扩写多', result.stdout)
+
     def test_quote_must_match_author_and_text_on_the_same_source_message(self):
         with reader() as (root, package, cp, env, base):
             arc, draft, _, story = manuscript(root, wrong_author=True)

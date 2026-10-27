@@ -22,6 +22,7 @@
        画像模式恒为 0。
 """
 import argparse
+from datetime import datetime
 import json
 import os
 import re
@@ -238,23 +239,56 @@ def main() -> int:
     # 8. 信息密度：每段稿件字数 / 该时段源字数
     #    只提示不拦截——图片、视频号这类消息源字数极低但确有内容，
     #    所以只在「源字数很少 且 扩写倍数很高」时才值得看一眼
-    def to_min(t: str) -> int:
-        h, m = t.strip().split(" ")[-1].split(":")[:2]
-        return int(h) * 60 + int(m)
+    def dated_minute(value, day, previous=None):
+        match = re.search(r"(?:(\d{4}-\d{2}-\d{2})[ T])?(\d{1,2}):(\d{2})", str(value))
+        if not match:
+            raise ValueError('missing timeline time')
+        date, hour, minute = match.groups()
+        h, m = int(hour), int(minute)
+        if h > 23 or m > 59:
+            raise ValueError('invalid timeline time')
+        ordinal = datetime.strptime(date, '%Y-%m-%d').toordinal() if date else day
+        result = ordinal * 1440 + h * 60 + m
+        if not date and previous is not None:
+            while result < previous:
+                result += 1440
+        return result
+
+    # Keep full dates; legacy HH:MM nodes infer midnight rollover in order.
+    span = arch.get('range') or {}
+    anchor_text = span.get('start') or min((str(m.get('time', '')) for m in msgs), default=story.get('date'))
+    try:
+        anchor_day = datetime.strptime(str(anchor_text)[:10], '%Y-%m-%d').toordinal()
+        lower = dated_minute(anchor_text, anchor_day)
+        dated_messages = [(dated_minute(m.get('time'), anchor_day), m) for m in msgs]
+        node_times = []
+        for node in tl:
+            lower = dated_minute(node.get('time'), lower // 1440, lower)
+            node_times.append(lower)
+        upper = dated_minute(span['end'], anchor_day) if span.get('end') else max(
+            (minute + 1 for minute, _ in dated_messages), default=lower + 1)
+    except (ValueError, TypeError):
+        dated_messages, node_times, upper = [], [], None
 
     print("[密度]")
     suspects = []
     # 素材量口径：排除纯占位符（[图片]/[表情]/[语音]/[视频]）和系统消息的 XML 碎片，
     # 但**保留** [链接]/[视频号] 的标题——那是真内容，不是占位
     placeholder = re.compile(r"^\[(图片|表情|语音|视频|位置|拍一拍)\]$")
-    text_msgs = [m for m in msgs
-                 if "sysmsg" not in str(m.get("text", ""))
-                 and not placeholder.match(str(m.get("text", "")).strip())]
+    dated_messages = [(minute, m) for minute, m in dated_messages
+                      if "sysmsg" not in str(m.get("text", ""))
+                      and not placeholder.match(str(m.get("text", "")).strip())]
     for i, n in enumerate(tl):
-        lo = to_min(n.get("time", "00:00"))
-        hi = to_min(tl[i + 1]["time"]) if i + 1 < len(tl) else 24 * 60
-        src = sum(len(str(m.get("text", ""))) for m in text_msgs
-                  if lo <= to_min(str(m.get("time", "00:00"))) < hi)
+        if len(node_times) != len(tl) or upper is None:
+            print(f"   {n.get('no')} 时间信息不足，跳过密度估计（不按 0 字警告）")
+            continue
+        lo = node_times[i]
+        hi = node_times[i + 1] if i + 1 < len(node_times) else upper
+        if hi <= lo:
+            print(f"   {n.get('no')} 时间区间未递增，跳过密度估计")
+            continue
+        src = sum(len(str(m.get("text", ""))) for minute, m in dated_messages
+                  if lo <= minute < hi)
         L = len(n.get("story", ""))
         ratio = L / max(src, 1)
         hot = src < material.MIN_CHARS_PER_NODE and ratio > 4

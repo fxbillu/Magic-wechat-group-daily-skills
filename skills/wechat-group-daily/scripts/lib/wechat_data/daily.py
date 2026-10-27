@@ -120,7 +120,7 @@ def settle(cfg, username, state):
     return True
 
 
-def prepare(cfg, until=None, finish=False):
+def prepare(cfg, until=None, finish=False, reopen=False):
     end = cutoff(cfg, until)
     chats = settings.active_chats(cfg)
     if not chats:
@@ -143,11 +143,21 @@ def prepare(cfg, until=None, finish=False):
                 if state.get('pending'):
                     results.append({'username': username, 'state': 'pending', **state['pending']})
                     continue
-                if state.get('completed_date', '') >= end.date().isoformat():
-                    results.append({'username': username, 'state': 'nothing', 'completed_to': state['completed_to']})
+                reopening = (reopen and state.get('reason') in ('empty', 'insufficient')
+                             and state.get('completed_date') == end.date().isoformat())
+                if (reopen and not reopening) or (not reopening and
+                        state.get('completed_date', '') >= end.date().isoformat()):
+                    results.append({'username': username, 'state': 'nothing', 'completed_to': state.get('completed_to')})
                     continue
                 start_value = state.get('completed_to') or state.get('started_from')
                 start = instant(start_value).astimezone(end.tzinfo) if start_value else initial_start(cfg, username, end)
+                if reopening:
+                    previous = archive.load(cfg, state['completed_date'], username)
+                    if not previous or previous.get('period_mode') != 'rolling':
+                        raise DailyError('EXISTING_EDITION_PRESERVED')
+                    if instant(previous['range']['end']) > end:
+                        raise DailyError('REOPEN_CUTOFF_BEFORE_ARCHIVE_END')
+                    start = instant(previous['range']['start']).astimezone(end.tzinfo)
                 if configured.get('effective_from'):
                     effective = datetime.fromisoformat(configured['effective_from']).replace(tzinfo=end.tzinfo)
                     start = max(start, effective)
@@ -165,12 +175,16 @@ def prepare(cfg, until=None, finish=False):
                 old_report = collection.record_path(cfg, 'report-records', date, username)
                 artifacts = Path(settings.reports_dir(cfg)) / date
                 old_entry = db.get_entry(cfg, date, username) if db.exists(cfg) else None
+                if reopening and (Path(old_report).exists()
+                        or (old_entry and old_entry.get('report', {}).get('html_url'))
+                        or any((artifacts / (stem + suffix)).exists() for suffix in ('.html', '.png', '.story.json'))):
+                    raise DailyError('EDITION_ALREADY_REPORTED')
                 if not existing and (Path(archive.archive_path(cfg, date, username)).exists()
                         or (old_entry and old_entry.get('report', {}).get('html_url'))
                         or Path(old_report).exists() or any(
                         (artifacts / (stem + suffix)).exists() for suffix in ('.html', '.png', '.story.json'))):
                     raise DailyError('EXISTING_EDITION_PRESERVED')
-                if existing and (existing.get('period_mode') != 'rolling' or existing.get('range') != {
+                if existing and not reopening and (existing.get('period_mode') != 'rolling' or existing.get('range') != {
                         'start': start.isoformat(), 'end': end.isoformat()}):
                     raise DailyError('EXISTING_EDITION_PRESERVED')
                 directory = settings.decrypted_dir(cfg)
@@ -179,7 +193,7 @@ def prepare(cfg, until=None, finish=False):
                     raise DailyError('DECRYPTION_INCOMPLETE')
                 if not guard.check(directory, target_end=end.timestamp())['fresh']:
                     raise DailyError('SNAPSHOT_INCOMPLETE')
-                if not existing:
+                if not existing or reopening:
                     chat = ChatResolver(directory).get(username)
                     with MessageReader(directory) as reader:
                         messages = reader.fetch(chat, start, end)

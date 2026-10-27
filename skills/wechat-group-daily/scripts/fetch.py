@@ -286,7 +286,7 @@ def cmd_archive(args):
 def cmd_daily(args):
     from wechat_data import daily, settings
     try:
-        result = daily.prepare(settings.require(), until=args.until, finish=args.finish)
+        result = daily.prepare(settings.require(), until=args.until, finish=args.finish, reopen=args.reopen)
     except (daily.DailyError, ValueError, TypeError, KeyError, OSError) as error:
         print(json.dumps({'mode': 'once_daily', 'code': str(error) if isinstance(error, daily.DailyError)
                           else 'DAILY_CONFIGURATION_INVALID'}, ensure_ascii=False))
@@ -474,7 +474,9 @@ def main():
 
     p = sub.add_parser("daily", help="每日一次：准备接续窗口或确认已出报")
     p.add_argument("--until", help="显式截止时间，必须含时区；默认最近一次配置的每日时刻")
-    p.add_argument("--finish", action="store_true", help="只确认已登记的日报，不再采集新窗口")
+    action = p.add_mutually_exclusive_group()
+    action.add_argument("--finish", action="store_true", help="只确认已登记的日报，不再采集新窗口")
+    action.add_argument("--reopen", action="store_true", help="重新采集同日尚未出报的空/素材不足窗口；已出报不会重发")
     p.set_defaults(func=cmd_daily)
 
     p = sub.add_parser("status", help="查看配置与归档状态")
