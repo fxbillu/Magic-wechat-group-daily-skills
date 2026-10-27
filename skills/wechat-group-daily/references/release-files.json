@@ -24,6 +24,7 @@
     "references/writing-spec.md",
     "scripts/assets/magic-reader.ico",
     "scripts/assets/magic-reader.svg",
+    "scripts/assets/project-report.css",
     "scripts/assets/report-layout.css",
     "scripts/config.example.json",
     "scripts/fetch.py",

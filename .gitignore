@@ -26,3 +26,7 @@ htmlcov/
 
 # Candidate binaries are published as GitHub Release assets.
 /dist/
+
+# Local design candidates and visual review captures; keep surface briefs tracked.
+/.impeccable/mocks/
+/.impeccable/review/

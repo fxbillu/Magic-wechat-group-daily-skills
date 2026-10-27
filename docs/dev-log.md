@@ -360,3 +360,22 @@
 
 - Standards axis: no actionable documented-standard violations or baseline smells. Spec axis found two gaps: ordinary re-collection could replace a historical frozen template, and mixed attachments lacked a coverage notice.
 - Fixes: ordinary archive replacement retains its original template; only the existing explicit same-day empty/insufficient `daily --reopen` path refreshes it. Project HTML now also identifies unread attachments/cards, alongside image and failed voice notices. Spec source recheck confirmed both gaps closed and found no new regression. Changed Python AST and full package static audit passed; no runtime tests run.
+
+## 2026-10-27 — Work report desktop redesign direction round
+
+- Reason: user approved report content but requested clearer progress/deadline hierarchy, color and modules using Impeccable.
+- Confirmed: desktop only; overview and deadlines first, then task, owner and project situation. Preserve source-bound content and avoid invented completion rates.
+- Scope: three first-viewport HTML concepts and local visual decision page; production renderer and existing reader identity unchanged at this stage.
+- Verification: opened all three 1440×900 concept captures and checked the intended composition. This is visual concept evidence, not Windows acceptance.
+- Pending: user locks the visual direction before implementation, as required by the invoked Impeccable new-work flow. Brief: `docs/plans/2026-10-27-work-report-redesign.md`.
+
+## 2026-10-27 — Unify the desktop project brief with the incumbent identity
+
+- User correction: keep the clear overview-left/deadlines-right/tasks-below composition; unify the whole product's visual identity rather than replace its palette. Desktop only.
+- Changes: production project renderer, new offline-inlined `project-report.css`, release inventory/provenance and template guidance. Existing paper/charcoal/brick tokens, serif report heading, aligned task dates and responsibility, semantic text states, inline evidence, task anchor navigation.
+- Truth boundaries: original deadline wording/order, no overdue inference or project completion percentage; no change to collection, voice, scheduling, original chats or the detailed report.
+- Checks so far: desktop1440/1280 and reader880 full captures, long/empty content and source disclosure inspected; no horizontal overflow; sampled text contrast4.83–14.67; keyboard focus2px and deadline-to-task anchor work. Changed Python AST and package static audit passed; detector ran once with no findings. No Windows/native/model runtime acceptance tests run.
+- Review: dedicated Impeccable role unavailable in this host; a fresh independent general agent is applying the shipped finish-reviewer definition. Independent disposition: ship, no material fixes; six captures reviewed including latest empty state. Documenter appended a narrowly scoped project-report subsection to DESIGN.md, preserving all existing rules and leaving legacy format/schema drift untouched. Evidence: `docs/reviews/2026-10-27-project-report-visual.md`.
+
+- Final wording guard: deadline typography now requires a non-time prefix before splitting date/time. Rendered HTML retains `12:00`, `10月28日12:00前` and free-text deadlines exactly; the example screenshots are unaffected.
+- Independent follow-up source verdict: deadline wording guard resolved/clear; no recapture needed, existing desktop visual verdict retained.
