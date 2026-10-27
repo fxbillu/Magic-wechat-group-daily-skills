@@ -308,3 +308,8 @@
 - Request: commit and push the reviewed wording, update the install package, and quickly check for other uncommitted changes. Initial status contained only README, DISCLAIMER and the prior log entry; no unrelated pending files were found.
 - Scope: publish a new rc.9 rather than replace immutable rc.8 assets. Align VERSION, Skill metadata, changelog and README download/verification links; retain runtime code, project name, configuration and history.
 - Validation: 21 existing package checks (20 pass, optional Pillow skip); 30 local document links, matching MIT texts, static source/provenance/privacy and whitespace checks passed. Build and verify the actual ZIP from committed clean source and compare the packaged disclaimer with the committed file. Record source revision, asset digest and GitHub readback after publication in the rc.9 verification record.
+
+## 2026-10-27 — Verify rc.9 source and install-package publication
+
+- Pushed documentation/version commit dc75ff9adf687b32bc8cfaebcf400ee4d95ad55e to main and published v1.3.0-rc.9 as a non-draft prerelease at that exact commit. Remote README and DISCLAIMER bytes match; all three release assets are uploaded.
+- Clean-source ZIP: 58 files, 295389 bytes, SHA-256 e25a7990669c4ec79d20ef78a8f3b16edd4a45fe9860b133cf44c6a408778ceb. GitHub digest and independently downloaded ZIP match; downloaded disclaimer equals committed source. Details are in verification/1.3.0-rc.9.md. Prior assets remain unchanged; this follow-up records delivery only.
