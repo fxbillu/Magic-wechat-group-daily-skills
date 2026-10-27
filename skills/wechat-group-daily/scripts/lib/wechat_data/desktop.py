@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import time
@@ -87,18 +86,15 @@ def reader_available(url):
 
 
 def open_reader(url):
-    if sys.platform == 'win32':
-        for name, vendor in [('msedge.exe', 'Microsoft/Edge'), ('chrome.exe', 'Google/Chrome')]:
-            candidates = [shutil.which(name)]
-            for key in ('PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA'):
-                root = os.environ.get(key)
-                if root:
-                    candidates.append(str(Path(root) / vendor / 'Application' / name))
-            for candidate in candidates:
-                if candidate and Path(candidate).is_file():
-                    subprocess.Popen([candidate, '--app=' + url])
-                    return
-    webbrowser.open(url)
+    try:
+        if sys.platform == 'win32':
+            # Let the registered HTTP handler receive the URL directly. A
+            # successful browser process spawn does not guarantee --app navigation.
+            os.startfile(url)
+        elif not webbrowser.open(url):
+            raise OSError('No browser accepted the URL')
+    except OSError:
+        raise RuntimeError('READER_BROWSER_OPEN_FAILED') from None
 
 
 def launch(config_path, port=8765, *, open_window=True):
@@ -140,8 +136,12 @@ def main():
         result = install_shortcut(args.config, args.port) if args.action == 'install' else launch(args.config, args.port, open_window=not args.no_open)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         result = {'state': 'failed', 'code': str(error), 'next_action': 'open_reader_in_workbuddy'}
+        message = '请在 WorkBuddy 中重新打开 Magic 群日报阅读台。'
+        if str(error) == 'READER_BROWSER_OPEN_FAILED':
+            result['url'] = f'http://127.0.0.1:{args.port}/'
+            message = f'服务已就绪，但浏览器未能打开。请手动访问 {result["url"]}'
         if sys.platform == 'win32' and not args.no_open:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(None, '请在 WorkBuddy 中重新打开 Magic 群日报阅读台。', TITLE, 0x10)
+            ctypes.windll.user32.MessageBoxW(None, message, TITLE, 0x10)
     print(json.dumps(result, ensure_ascii=False))
     return 1 if result['state'] == 'failed' else 0
