@@ -149,3 +149,20 @@
 - Scope: README only, plus this required log entry. Added the user's motivation: frequent discussions across many WeChat project groups make overall progress hard to follow; daily reports provide material for progress synchronization. Only the daily-report portion is currently shared; broader project-progress integration and synchronization are outside this release's scope.
 - Decisions: distinguish local file storage from WorkBuddy/model processing, which may send chat content or excerpts to cloud services depending on the host and model configuration. Describe lawful data access, privacy before sharing, prohibited misuse, independent/non-official status, AI verification, runtime limitations and component-specific licensing without choosing a new project license or promising absolute immunity from liability.
 - Verification: reviewed the prose against the user's stated motivation and current README, Skill and third-party documentation; checked Markdown references and whitespace. No runtime code changed, so product tests were not rerun. No GitHub publication, package update or new Windows acceptance is claimed.
+
+## 2026-10-27 — Prepare four desktop icon directions for selection
+
+- Request: inspect the apparently missing desktop shortcut icon, show several icon designs first, and update GitHub after selection.
+- Finding: the current installer draws a single 64px icon through Windows System.Drawing and binds its stored path to the shortcut. No live Windows evidence establishes why the user's icon is absent.
+- Scope: four original SVG candidates and a rendered comparison under `assets/icon-concepts/2026-10-27/`; directions cover paper/brick-red, green conversations, Magic star/report, and morning news. No runtime or release manifest changes in this selection round; unrelated local decryption/setup edits were preserved.
+- Verification: inspected the rendered comparison including 64/48/32px previews, parsed all SVGs as XML, checked local Markdown references and whitespace. macOS Quick Look required access outside the default sandbox to render SVG; no package or Windows acceptance was run for these design-only assets.
+- Next: user selects a direction; export a multi-size ICO, integrate its distribution and shortcut installation, verify public boundaries, then publish the scoped changes to GitHub. The runtime icon issue is not yet claimed fixed.
+
+## 2026-10-27 — Ship the selected warm-paper desktop icon
+
+- Request: user selected A 暖纸日报 and authorized integrating the desktop icon and updating GitHub.
+- Scope: original SVG and seven-size ICO (16/24/32/48/64/128/256 px), release inventory, desktop installer, update instructions and public desktop/package checks. Retained the four design directions as review assets. Existing decryption/onboarding/version changes and upstream research are outside this commit.
+- Decision: copy the bundled ICO into the package-external desktop directory and use a content-derived filename to avoid reusing the old cached icon location; repeated installation updates the same fixed-name shortcut and restores a missing icon. Missing source icons return SHORTCUT_ICON_MISSING before creating an entry. No runtime image library or System.Drawing rendering is required.
+- Distribution: require both icon source and ICO in the package; allow only this reviewed ICO binary by exact SHA-256, retaining text/privacy checks and rejection of other binaries. ICO SHA-256: cfb7588a4aae63cf86e276c311b8bbe01a9b377445653ffb2a8be3b1a78c27eb.
+- Verification: full working-tree suite ran 66 tests: 65 passed, one optional Pillow test skipped. A clean HEAD snapshot containing only the icon changes separately passed 4 desktop checks and 18 package checks (one optional Pillow skip) and built/rechecked a 48-file candidate ZIP. Pillow in the bundled development runtime decoded all seven RGBA frames; SVG/reference checks, Node syntax and whitespace checks passed.
+- Evidence limits: Windows COM and the actual desktop appearance remain unverified on this Mac. This change updates GitHub source; published release ZIPs/tags are not replaced. The user's missing-icon root cause was not reproduced locally.

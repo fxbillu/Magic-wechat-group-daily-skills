@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import struct
 import sys
 import tempfile
 import unittest
@@ -116,8 +117,31 @@ class PackageTest(unittest.TestCase):
             archive.extractall(self.root / 'expanded')
         skill = self.root / 'expanded/wechat-group-daily'
         self.assertTrue((skill / 'scripts/web/vendor/vue.global.prod.js').is_file())
+        icon = (skill / 'scripts/assets/magic-reader.ico').read_bytes()
+        self.assertEqual(struct.unpack_from('<HHH', icon), (0, 1, 7))
+        sizes = set()
+        for index in range(7):
+            width, height, _, _, _, _, length, offset = struct.unpack_from('<BBBBHHII', icon, 6 + index * 16)
+            sizes.add((width or 256, height or 256))
+            self.assertLessEqual(offset + length, len(icon))
+            self.assertEqual(icon[offset:offset+8], b'\x89PNG\r\n\x1a\n')
+        self.assertEqual(sizes, {(n, n) for n in (16, 24, 32, 48, 64, 128, 256)})
         self.assertFalse((skill / 'scripts/config.json').exists())
         self.assertFalse((self.root / 'external').exists())
+
+    def test_missing_or_modified_desktop_icon_blocks_build(self):
+        self.align_test_versions()
+        path = self.skill / 'scripts/assets/magic-reader.ico'
+        original = path.read_bytes()
+        path.unlink()
+        result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('MISSING_FILE: scripts/assets/magic-reader.ico', result.stdout)
+        path.write_bytes(original + b'unreviewed bytes')
+        result = self.run_cli('--build', '--output', self.root / 'candidate.zip')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('BINARY_ASSET_HASH_MISMATCH', result.stdout)
+        self.assertFalse((self.root / 'candidate.zip').exists())
 
     def test_capabilities_execute_known_vectors_without_initializing_user_state(self):
         result = self.run_cli('--capabilities', '--node', sys.executable)

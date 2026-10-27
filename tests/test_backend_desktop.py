@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import socket
 import subprocess
 import sys
@@ -38,7 +39,7 @@ class DesktopTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='magic-desktop-') as folder:
             root = Path(folder)
             wrapper = root / 'windows_boundary.py'
-            wrapper.write_text('''import base64,json,os,pathlib,re,runpy,subprocess,sys
+            wrapper.write_text('''import base64,json,os,pathlib,re,runpy,shutil,subprocess,sys
 sys.path.insert(0,str(pathlib.Path(sys.argv[1]).resolve().parents[1]/'lib'))
 import wechat_data.desktop
 sys.platform='win32'
@@ -48,6 +49,12 @@ def run(command,**kwargs):
  encoded=re.search(r"FromBase64String\\('([^']+)'\\)",script)[1]
  payload=json.loads(base64.b64decode(encoded))
  assert "GetFolderPath('Desktop')" in script and 'CreateShortcut($path)' in script
+ assert 'Copy-Item -LiteralPath $p.icon_source -Destination $iconPath -Force' in script
+ assert "$link.IconLocation = $iconPath + ',0'" in script
+ source=pathlib.Path(payload['icon_source'])
+ storage=pathlib.Path(payload['storage'])
+ storage.mkdir(parents=True,exist_ok=True)
+ shutil.copyfile(source,storage/payload['icon_name'])
  desktop=pathlib.Path(os.environ['MAGIC_TEST_DESKTOP'])
  desktop.mkdir(exist_ok=True)
  path=desktop/(payload['name']+'.lnk')
@@ -59,10 +66,17 @@ sys.argv=sys.argv[1:]
 runpy.run_path(sys.argv[0],run_name='__main__')
 ''', encoding='utf-8')
             config = root / '含空格 data' / 'config.json'
+            installed = root / '安装 副本'
+            shutil.copytree(TOOL.parents[2], installed, ignore=shutil.ignore_patterns('__pycache__'))
             env = dict(os.environ, MAGIC_TEST_DESKTOP=str(root / 'Desktop'))
-            command = [sys.executable, '-B', str(wrapper), str(TOOL), 'install', '--config', str(config)]
+            command = [sys.executable, '-B', str(wrapper), str(installed / 'scripts/tools/desktop.py'),
+                       'install', '--config', str(config)]
             first = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            # Reinstallation also repairs a lost package-external icon.
+            saved = json.loads(Path(json.loads(first.stdout)['shortcut']).read_text(encoding='utf-8'))
+            icon = Path(saved['storage']) / saved['icon_name']
+            icon.unlink()
             second = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
             one, two = json.loads(first.stdout), json.loads(second.stdout)
@@ -73,6 +87,28 @@ runpy.run_path(sys.argv[0],run_name='__main__')
             payload = json.loads(Path(two['shortcut']).read_text(encoding='utf-8'))
             self.assertIn(str(config), payload['arguments'])
             self.assertEqual(payload['name'], 'Magic 群日报')
+            self.assertEqual(icon.read_bytes(), (installed / 'scripts/assets/magic-reader.ico').read_bytes())
+            self.assertTrue(icon.name.startswith('magic-reader-'))
+
+    def test_incomplete_install_reports_missing_icon_without_creating_shortcut(self):
+        with tempfile.TemporaryDirectory(prefix='magic-missing-icon-') as folder:
+            root = Path(folder)
+            installed = root / 'installed'
+            shutil.copytree(TOOL.parents[2], installed, ignore=shutil.ignore_patterns('__pycache__'))
+            (installed / 'scripts/assets/magic-reader.ico').unlink()
+            wrapper = root / 'windows.py'
+            wrapper.write_text('import pathlib,runpy,sys\n'
+                               'sys.path.insert(0,str(pathlib.Path(sys.argv[1]).resolve().parents[1]/"lib"))\n'
+                               'import wechat_data.desktop\nsys.platform="win32"\n'
+                               'sys.argv=sys.argv[1:]\nrunpy.run_path(sys.argv[0],run_name="__main__")\n',
+                               encoding='utf-8')
+            result = subprocess.run([sys.executable, '-B', str(wrapper),
+                                     str(installed / 'scripts/tools/desktop.py'), 'install',
+                                     '--no-open', '--config', str(root / 'external/config.json')],
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)['code'], 'SHORTCUT_ICON_MISSING')
+            self.assertFalse((root / 'external').exists())
 
     @unittest.skipIf(sys.platform == 'win32', 'Non-Windows no-op')
     def test_non_windows_install_has_no_desktop_side_effect(self):

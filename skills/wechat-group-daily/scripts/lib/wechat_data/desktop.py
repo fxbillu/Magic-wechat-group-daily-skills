@@ -1,6 +1,7 @@
 """One Windows shortcut, backed by the existing local reader."""
 import argparse
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,7 @@ import webbrowser
 BASE = Path(__file__).resolve().parents[2]
 TITLE = 'Magic 群日报'
 
-# The icon is generated on Windows; no image library is needed by the Skill.
+# Ship the reviewed multi-size icon; Windows installation needs no image library.
 INSTALL_SCRIPT = r'''
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
@@ -24,26 +25,8 @@ $desktop = [Environment]::GetFolderPath('Desktop')
 if (-not $desktop) { throw 'DESKTOP_NOT_FOUND' }
 [IO.Directory]::CreateDirectory($desktop) | Out-Null
 [IO.Directory]::CreateDirectory($p.storage) | Out-Null
-$iconPath = Join-Path $p.storage 'magic-reader.ico'
-Add-Type -AssemblyName System.Drawing
-$bitmap = [Drawing.Bitmap]::new(64,64)
-$g = [Drawing.Graphics]::FromImage($bitmap)
-$g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$paper = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#F6F3EB'))
-$ink = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#22201C'))
-$brick = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#B33A2B'))
-$g.Clear([Drawing.Color]::Transparent)
-$g.FillEllipse($paper,0,0,63,63)
-$pen = [Drawing.Pen]::new($ink,2)
-$g.DrawRectangle($pen,15,10,34,44)
-$g.FillRectangle($brick,21,17,22,7)
-$g.FillRectangle($ink,21,30,22,2)
-$g.FillRectangle($ink,21,37,22,2)
-$g.FillRectangle($ink,21,44,14,2)
-$icon = [Drawing.Icon]::FromHandle($bitmap.GetHicon())
-$stream = [IO.File]::Create($iconPath)
-try { $icon.Save($stream) } finally { $stream.Dispose() }
-$icon.Dispose(); $pen.Dispose(); $paper.Dispose(); $ink.Dispose(); $brick.Dispose(); $g.Dispose(); $bitmap.Dispose()
+$iconPath = Join-Path $p.storage $p.icon_name
+Copy-Item -LiteralPath $p.icon_source -Destination $iconPath -Force
 $path = Join-Path $desktop ($p.name + '.lnk')
 $existed = Test-Path -LiteralPath $path
 $shell = New-Object -ComObject WScript.Shell
@@ -67,8 +50,15 @@ def install_shortcut(config_path, port=8765):
     windowless = python.with_name('pythonw.exe')
     python = windowless if windowless.is_file() else python
     tool = BASE / 'tools/desktop.py'
+    icon = BASE / 'assets/magic-reader.ico'
+    try:
+        icon_digest = hashlib.sha256(icon.read_bytes()).hexdigest()[:12]
+    except OSError:
+        return {'state': 'failed', 'code': 'SHORTCUT_ICON_MISSING',
+                'next_action': 'update_skill_then_recreate_desktop_shortcut_in_workbuddy'}
     payload = {'name': TITLE, 'python': str(python), 'workdir': str(BASE),
                'storage': str(config.parent / 'desktop'),
+               'icon_source': str(icon), 'icon_name': f'magic-reader-{icon_digest}.ico',
                'arguments': subprocess.list2cmdline([str(tool), 'launch', '--config', str(config),
                                                      '--port', str(port)])}
     encoded = base64.b64encode(json.dumps(payload, ensure_ascii=False).encode('utf-8')).decode('ascii')

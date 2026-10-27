@@ -36,6 +36,7 @@ ESSENTIAL = {
     'scripts/config.example.json', 'scripts/fetch.py', 'scripts/lib/wechat_data/collection.py',
     'scripts/tools/setup.py', 'scripts/tools/doctor.py',
     'scripts/tools/desktop.py', 'scripts/lib/wechat_data/desktop.py',
+    'scripts/assets/magic-reader.ico', 'scripts/assets/magic-reader.svg',
     'scripts/tools/serve.py', 'scripts/tools/render_daily.py',
     'scripts/tools/check_story.py', 'scripts/tools/safe_decrypt.py',
     'scripts/tools/wcdb_key_tool_windows.py', 'scripts/tools/zstd_bridge.js',
@@ -48,7 +49,11 @@ class Blocked(Exception):
     pass
 
 
-# All accepted payloads are UTF-8 text, including HTML/CSS/SVG and extensionless VERSION.
+# Only this reviewed original icon is accepted as a binary; all other payloads
+# remain UTF-8 text, including SVG and extensionless VERSION.
+REVIEWED_BINARY_SHA256 = {
+    'scripts/assets/magic-reader.ico': 'cfb7588a4aae63cf86e276c311b8bbe01a9b377445653ffb2a8be3b1a78c27eb',
+}
 TEXT_SUFFIXES = {'.py', '.js', '.md', '.json', '.txt', '.html', '.css', '.svg'}
 LEAK_RULES = [
     ('account_id', re.compile(r'wxid_[A-Za-z0-9_-]{6,}')),
@@ -62,6 +67,9 @@ LEAK_RULES = [
 
 
 def scan_text(path, rel):
+    if rel in REVIEWED_BINARY_SHA256:
+        return ([] if hashlib.sha256(path.read_bytes()).hexdigest() == REVIEWED_BINARY_SHA256[rel]
+                else [f'BINARY_ASSET_HASH_MISMATCH: {rel}'])
     if path.suffix.lower() not in TEXT_SUFFIXES and rel != 'VERSION':
         return [f'UNSUPPORTED_TEXT: {rel}']
     try:

@@ -14,6 +14,8 @@
     "references/third-party.md",
     "references/windows-acceptance.md",
     "references/writing-spec.md",
+    "scripts/assets/magic-reader.ico",
+    "scripts/assets/magic-reader.svg",
     "scripts/config.example.json",
     "scripts/fetch.py",
     "scripts/lib/wechat_data/__init__.py",
