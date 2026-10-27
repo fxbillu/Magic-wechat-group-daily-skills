@@ -57,7 +57,7 @@ def archive_path(cfg: dict, date: str, username: str) -> str:
 
 # ---------------------------------------------------------------- 单日归档
 
-def save(cfg: dict, date: str, chat, msgs, stats, start, end) -> str:
+def save(cfg: dict, date: str, chat, msgs, stats, start, end, *, period_mode=None) -> str:
     """写入一个群某天的归档，并更新索引与状态"""
     payload = {
         "chat": {
@@ -78,6 +78,8 @@ def save(cfg: dict, date: str, chat, msgs, stats, start, end) -> str:
         "messages": [m.to_dict() for m in msgs],
         "archived_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
+    if period_mode:
+        payload['period_mode'] = period_mode
     _, _, span = collection.day_range(cfg, start, end)
     payload['collection'] = {
         'state': 'collected' if msgs else 'empty', 'revision': collection.revision(payload),

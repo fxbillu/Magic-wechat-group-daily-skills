@@ -27,6 +27,7 @@
     "scripts/lib/wechat_data/config.py",
     "scripts/lib/wechat_data/content.py",
     "scripts/lib/wechat_data/db.py",
+    "scripts/lib/wechat_data/daily.py",
     "scripts/lib/wechat_data/desktop.py",
     "scripts/lib/wechat_data/guard.py",
     "scripts/lib/wechat_data/material.py",

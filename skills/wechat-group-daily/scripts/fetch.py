@@ -23,6 +23,7 @@
 export 输出目录默认 out/；archive 使用包外配置目录及稳定群 ID 文件名。
 """
 import argparse
+import json
 import os
 import sys
 from datetime import datetime
@@ -241,6 +242,18 @@ def cmd_archive(args):
     return 1 if failures else 0
 
 
+def cmd_daily(args):
+    from wechat_data import daily, settings
+    try:
+        result = daily.prepare(settings.require(), until=args.until, finish=args.finish)
+    except (daily.DailyError, ValueError, TypeError, KeyError, OSError) as error:
+        print(json.dumps({'mode': 'once_daily', 'code': str(error) if isinstance(error, daily.DailyError)
+                          else 'DAILY_CONFIGURATION_INVALID'}, ensure_ascii=False))
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 1 if any(item['state'] == 'failed' for item in result['groups']) else 0
+
+
 def cmd_status(args):
     """一眼看清：配置、归档、数据新鲜度"""
     from wechat_data import archive as ar, guard
@@ -404,6 +417,11 @@ def main():
     p.add_argument("--max-age-hours", type=float, default=argparse.SUPPRESS)
     p.add_argument("--allow-stale", action="store_true", default=argparse.SUPPRESS)
     p.set_defaults(func=cmd_archive)
+
+    p = sub.add_parser("daily", help="每日一次：准备接续窗口或确认已出报")
+    p.add_argument("--until", help="显式截止时间，必须含时区；默认最近一次配置的每日时刻")
+    p.add_argument("--finish", action="store_true", help="只确认已登记的日报，不再采集新窗口")
+    p.set_defaults(func=cmd_daily)
 
     p = sub.add_parser("status", help="查看配置与归档状态")
     p.set_defaults(func=cmd_status)

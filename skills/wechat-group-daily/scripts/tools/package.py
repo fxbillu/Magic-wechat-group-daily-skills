@@ -27,13 +27,14 @@ NAME = 'wechat-group-daily'
 MANIFEST = 'references/release-files.json'
 RUNTIME_NAMES = {'config.json', 'all_keys.json', '.stamp.json', '.env', 'data', 'reports',
                  'logs', 'secrets', 'decrypted', 'dist', '__pycache__', 'legacy-import',
-                 'collections', 'report-records'}
+                 'collections', 'report-records', 'daily-state'}
 # These cannot be made optional by deleting a line from the release inventory.
 ESSENTIAL = {
     'SKILL.md', 'VERSION', MANIFEST, 'references/writing-spec.md',
     'references/dependencies.md', 'references/third-party.md', 'references/third-party.json',
     'references/windows-acceptance.md', 'licenses/vue-MIT.txt', 'licenses/wcdb-key-tool-MIT.txt',
     'scripts/config.example.json', 'scripts/fetch.py', 'scripts/lib/wechat_data/collection.py',
+    'scripts/lib/wechat_data/daily.py',
     'scripts/tools/setup.py', 'scripts/tools/doctor.py',
     'scripts/tools/desktop.py', 'scripts/lib/wechat_data/desktop.py',
     'scripts/assets/magic-reader.ico', 'scripts/assets/magic-reader.svg',

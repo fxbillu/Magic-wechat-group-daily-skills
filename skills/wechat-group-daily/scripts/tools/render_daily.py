@@ -463,7 +463,7 @@ def main():
 
     story = json.load(open(args.story, encoding="utf-8"))
 
-    from wechat_data import db, settings
+    from wechat_data import archive, db, settings
     cfg = settings.require()
 
     if not args.no_register:
@@ -475,6 +475,13 @@ def main():
             return 3
         story['username'] = username
         story.setdefault('source_revision', entry['collection']['revision'])
+    source = archive.load(cfg, str(story.get('date') or ''), story.get('username') or '')
+    if source and source.get('period_mode') == 'rolling':
+        if story.get('source_revision') != source['collection']['revision']:
+            print('[错误] 日报与冻结时间窗口的素材版本不一致。', file=sys.stderr)
+            return 1
+        span = source['range']
+        story['time_range'] = f"{span['start']} — {span['end']}（不含截止时刻）"
     theme = args.theme or _theme_from_config(cfg, story)
 
     if args.out:

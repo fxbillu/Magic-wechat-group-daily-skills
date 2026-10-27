@@ -1,12 +1,12 @@
 ---
 name: wechat-group-daily
-version: 1.3.0-rc.4
+version: 1.3.0-rc.5
 description: Magic 微信群日报：在本人 Windows 电脑安装、更新或使用本地微信群日报。首次确认账号、包外目录与关注群；按群按日成稿并回看，更新时复用原配置和历史。
 ---
 
 # Magic 微信群日报
 
-为用户确认的每个关注群、每个指定自然日生成独立日报，并在本机阅读。使用原 Windows 取钥、解密、采集、宿主模型写稿、验稿和 HTML/可选 PNG 渲染路径。首次初始化与任务复建按本文执行，不新建模型 API 账号。
+每天在用户选定的时间，为每个关注群生成一份接续时间窗口的独立日报，并在本机阅读。使用原 Windows 取钥、解密、采集、宿主模型写稿、验稿和 HTML/可选 PNG 渲染路径。首次初始化与任务复建按本文执行，不新建模型 API 账号。
 
 命令使用同一个 Python ≥3.11 解释器 `$PY`，工作目录为本 Skill 的 `scripts/`（或给脚本绝对路径）。配置默认在 Windows `%LOCALAPPDATA%\WeChatGroupDaily\config.json`，也可用 `WECHAT_DAILY_CONFIG` 指定包外配置。运行数据和密钥均在用户确认的包外目录；密钥只留本机受控文件，不让用户粘贴或回传。
 
@@ -60,21 +60,29 @@ $PY tools/desktop.py install
 
 ## 首份样例与日常出报
 
-建议先取配置时区的昨天；无消息或素材不足时说明原因，由用户决定是否换日期，不自动回补或硬凑。
+只运行一条每日任务。先确认使用者选择的时间和时区，推荐 21:00，但保留已确认的时间，不擅自改成晚上。日常先按下方命令刷新解密，再准备本次窗口：
 
 ```bash
-$PY fetch.py archive --config --date <YYYY-MM-DD>
-$PY tools/check_story.py --assess "<稳定群ID>" --date <YYYY-MM-DD>
+$PY fetch.py daily
 ```
 
-读取工具返回的冻结归档路径，文件名按稳定 ID 散列，不按群名猜路径。准备写稿时读 [日报写作规范](references/writing-spec.md)，读完全部来源后由 **WorkBuddy 当前对话模型** 写 story.json，绑定 `username/date/source_revision`（归档的 `collection.revision`）。引用使用同一条消息的原句、作者与可用 `message_id`；同名作者需用来源 ID 区分。一个群一份，保留规范中的报道文风、字数、人物选择和人工内容检查。
+默认截止点是配置时区最近一次已到达的 `compose.time`；起点接上该群上次成功处理的截止点。首次无成功记录取前一个周期，存在可核对的旧日报则从其成功截止点接续，且不早于关注生效日。单次缺口超过 7 天先报告并由用户决定补跑范围，不自动无限回补。
+
+读取 JSON 的 `groups`：仅对 `state=pending` 的条目写稿，使用条目的 `archive/date/revision/start/end`；它们是冻结范围，不自行改成“昨天”或“今天”。`nothing` 不重复出报；`empty/insufficient` 如实说明，不硬凑；`failed` 保留结果并处理对应错误。失败后再次调用仍返回原待出报素材，不推进起点。不得调用用户包外的 `next_range.py`；本入口已包含接续与待出报恢复。
+
+需要立即试跑到当前时刻时，可在用户确认后使用 `daily --until <带时区的ISO截止时间>`；同一群同一出报日期只保留一份。旧自然日归档与当前窗口冲突时返回 `EXISTING_EDITION_PRESERVED`，保留旧数据；换到下一次计划截止点后接续，不删除旧归档解冲突。
+
+读取工具返回的冻结归档路径，文件名按稳定 ID 散列，不按群名猜路径。准备写稿时读 [日报写作规范](references/writing-spec.md)，读完全部来源后由 **WorkBuddy 当前对话模型** 写 story.json，绑定返回条目的 `username/date/source_revision`（`revision` 即归档的 `collection.revision`）。引用使用同一条消息的原句、作者与可用 `message_id`；同名作者需用来源 ID 区分。一个群一份，保留规范中的报道文风、字数、人物选择和人工内容检查。
 
 ```bash
 $PY tools/check_story.py "<story.json>" --archive "<冻结归档.json>"
 $PY tools/render_daily.py "<story.json>"
+$PY fetch.py daily --finish
 # PNG 能力缺失或用户确认降级时用 --no-png，HTML 是基本交付
 $PY tools/serve.py --port 8765
 ```
+
+渲染登记后运行 `daily --finish`：仅在 HTML 可读且素材版本一致时确认成功；PNG 按既有能力生成或显式降级。失败不手工编辑游标。程序会把真实起止时刻写进报头，模型不能将其改成整日统计。
 
 验稿不通过先修原文绑定和写作问题，再渲染。用宿主现有浏览器打开本地阅读页/实际 HTML，核对日期、群、标题和可读内容。实际打开后如实向用户报告，内容认可独立。PNG 只有实际生成且存在才算成功，没有就明确降级。
 
