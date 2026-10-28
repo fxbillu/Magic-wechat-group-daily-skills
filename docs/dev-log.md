@@ -379,3 +379,10 @@
 
 - Final wording guard: deadline typography now requires a non-time prefix before splitting date/time. Rendered HTML retains `12:00`, `10月28日12:00前` and free-text deadlines exactly; the example screenshots are unaffected.
 - Independent follow-up source verdict: deadline wording guard resolved/clear; no recapture needed, existing desktop visual verdict retained.
+
+## 2026-10-28 — User accepts the desktop project-report preview
+
+- User explicitly approved the current preview: “OK，这个预览我通过了。”
+- Accepted baseline: overview left, recorded deadlines right, aligned task/owner/status/progress table below; shared warm paper, charcoal and brick identity, corresponding to implementation `0d6d650`.
+- Scope: record visual acceptance only; no product code, dependency, release or task changes. Existing Windows/native/model/scheduler acceptance remains separate.
+- Verification: documentation diff and relative reference checked; no runtime tests repeated for this acceptance record.
