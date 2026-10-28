@@ -330,6 +330,7 @@ def set_report(cfg: dict, date: str, username: str = "", html: str = "",
         record = {key: entry.get(key) for key in
                   ('report_html', 'report_png', 'title', 'lead', 'cast', 'composed_at')}
         record['source_revision'] = (story or {}).get('source_revision') or entry['collection']['revision']
+        record['report_template'] = (story or {}).get('report_template', 'detailed')
         record['composed_at'] = collection.now()
         archive._atomic_write(collection.record_path(cfg, 'report-records', date, username), record)
     return updated

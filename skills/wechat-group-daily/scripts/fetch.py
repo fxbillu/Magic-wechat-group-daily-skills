@@ -297,6 +297,24 @@ def cmd_daily(args):
     return 1 if any(item['state'] == 'failed' for item in result['groups']) else 0
 
 
+def cmd_report_template(args):
+    from wechat_data import report_templates, settings
+    cfg = settings.require()
+    try:
+        if args.template_action == 'list':
+            result = {'groups': [{'username': item['username'], 'name': item.get('name', ''),
+                       'report_template': report_templates.selected(cfg, item['username'])}
+                      for item in cfg['chats']]}
+        else:
+            result = report_templates.configure(cfg, args.chat, args.template)
+    except (ValueError, OSError) as error:
+        code = str(error) if isinstance(error, ValueError) and str(error).startswith('REPORT_') else 'REPORT_TEMPLATE_OPERATION_FAILED'
+        print(json.dumps({'state': 'failed', 'code': code}, ensure_ascii=False))
+        return 1
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
 def cmd_voice(args):
     import sqlite3
     from wechat_data import settings, voice_jobs
@@ -381,7 +399,7 @@ def cmd_views(args):
         title = (c.get("title") or "").replace("\n", " ")[:26]
         if c["state"] == "empty":
             enough, why = material.sufficient(c["total"], c["chars"],
-                                              c["unique_senders"])
+                                              c["unique_senders"], template=c.get("report_template", "detailed"))
             title = f"素材不足：{why}"
         print(f"  {mark} {c['chat'][:20]:<22}{c['total']:>5}条  "
               f"{c['state']:<8}{title}")
@@ -499,6 +517,15 @@ def main():
     action.add_argument("--finish", action="store_true", help="只确认已登记的日报，不再采集新窗口")
     action.add_argument("--reopen", action="store_true", help="重新采集同日尚未出报的空/素材不足窗口；已出报不会重发")
     p.set_defaults(func=cmd_daily)
+
+    p = sub.add_parser('report-template', help='按群选择详细版或项目工作版')
+    modes = p.add_subparsers(dest='template_action', required=True)
+    listing = modes.add_parser('list')
+    listing.set_defaults(func=cmd_report_template)
+    configure = modes.add_parser('set')
+    configure.add_argument('--chat', required=True, help='稳定群 ID')
+    configure.add_argument('--template', required=True, choices=('detailed', 'project'))
+    configure.set_defaults(func=cmd_report_template)
 
     p = sub.add_parser('voice', help='补跑冻结归档中未成功转写的语音')
     actions = p.add_subparsers(dest='voice_action', required=True)

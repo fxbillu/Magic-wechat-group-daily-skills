@@ -347,3 +347,42 @@
 - Source follow-up closed the original Standards/Spec findings and identified an interrupted revision gap. Added a durable pending voice-revision marker with idempotent recovery of collection revision/index/daily pending state; both retry (including no remaining failed audio) and the relevant daily edition can resume it. Existing collection failures and newer-edition cursors remain untouched. No runtime rerun; Windows must check this final recovery path.
 
 - Final source-only follow-up: Standards 2 findings closed; Spec 2 initial plus 1 interrupted-revision finding closed, no remaining issues within the reviewed scope. Parsed changed Python source without executing it. Built a clean internal Windows preview from 1972e45: 60 files, SHA-256 55a3ed2057a5fe4d8276ce39f62338bd58b819fa74875a73602fba0ba21e5b8d; copied ZIP/receipt/checksum into the primary checkout's ignored dist/voice-windows-preview for handoff. No GitHub release or main-branch update. Details: verification/voice-windows-handoff.md.
+
+## 2026-10-27 — Per-group work reports and silent background delivery
+
+- Reason: user reported browser windows opening without clicks during background reporting and requested a work-focused template alongside detailed reports, selected per group.
+- Scope: template configuration CLI, frozen archive/pending metadata, mode-aware sufficiency, source-bound project story validation/rendering, reader template label and project panel routing, silent reader ensure action, Skill/saved-task migration guidance, release manifests.
+- Decisions: detailed remains default; changes apply to future collected archives; project permits short work notices and shows missing owner/deadline as pending confirmation. Completed feedback remains a group claim. Background updates files and notifies links; explicit shortcut launch opens the reader. Existing Windows saved task must be edited in place. No image pipeline, GUI replacement, or concurrent installer changes.
+- Verification: AST parsing of 12 changed/new Python files, `node --check` for app.js, 62-file manifest/provenance coverage, changed Markdown path resolution and `git diff --check` passed. Per user instruction no runtime/model/Mac acceptance tests in this change; real Windows background scheduling, content quality and reading behavior remain unverified.
+- Acceptance and source contract: `docs/plans/2026-10-27-work-reports.md`, `skills/wechat-group-daily/references/report-templates.md`.
+
+### Source review follow-up
+
+- Standards axis: no actionable documented-standard violations or baseline smells. Spec axis found two gaps: ordinary re-collection could replace a historical frozen template, and mixed attachments lacked a coverage notice.
+- Fixes: ordinary archive replacement retains its original template; only the existing explicit same-day empty/insufficient `daily --reopen` path refreshes it. Project HTML now also identifies unread attachments/cards, alongside image and failed voice notices. Spec source recheck confirmed both gaps closed and found no new regression. Changed Python AST and full package static audit passed; no runtime tests run.
+
+## 2026-10-27 — Work report desktop redesign direction round
+
+- Reason: user approved report content but requested clearer progress/deadline hierarchy, color and modules using Impeccable.
+- Confirmed: desktop only; overview and deadlines first, then task, owner and project situation. Preserve source-bound content and avoid invented completion rates.
+- Scope: three first-viewport HTML concepts and local visual decision page; production renderer and existing reader identity unchanged at this stage.
+- Verification: opened all three 1440×900 concept captures and checked the intended composition. This is visual concept evidence, not Windows acceptance.
+- Pending: user locks the visual direction before implementation, as required by the invoked Impeccable new-work flow. Brief: `docs/plans/2026-10-27-work-report-redesign.md`.
+
+## 2026-10-27 — Unify the desktop project brief with the incumbent identity
+
+- User correction: keep the clear overview-left/deadlines-right/tasks-below composition; unify the whole product's visual identity rather than replace its palette. Desktop only.
+- Changes: production project renderer, new offline-inlined `project-report.css`, release inventory/provenance and template guidance. Existing paper/charcoal/brick tokens, serif report heading, aligned task dates and responsibility, semantic text states, inline evidence, task anchor navigation.
+- Truth boundaries: original deadline wording/order, no overdue inference or project completion percentage; no change to collection, voice, scheduling, original chats or the detailed report.
+- Checks so far: desktop1440/1280 and reader880 full captures, long/empty content and source disclosure inspected; no horizontal overflow; sampled text contrast4.83–14.67; keyboard focus2px and deadline-to-task anchor work. Changed Python AST and package static audit passed; detector ran once with no findings. No Windows/native/model runtime acceptance tests run.
+- Review: dedicated Impeccable role unavailable in this host; a fresh independent general agent is applying the shipped finish-reviewer definition. Independent disposition: ship, no material fixes; six captures reviewed including latest empty state. Documenter appended a narrowly scoped project-report subsection to DESIGN.md, preserving all existing rules and leaving legacy format/schema drift untouched. Evidence: `docs/reviews/2026-10-27-project-report-visual.md`.
+
+- Final wording guard: deadline typography now requires a non-time prefix before splitting date/time. Rendered HTML retains `12:00`, `10月28日12:00前` and free-text deadlines exactly; the example screenshots are unaffected.
+- Independent follow-up source verdict: deadline wording guard resolved/clear; no recapture needed, existing desktop visual verdict retained.
+
+## 2026-10-28 — User accepts the desktop project-report preview
+
+- User explicitly approved the current preview: “OK，这个预览我通过了。”
+- Accepted baseline: overview left, recorded deadlines right, aligned task/owner/status/progress table below; shared warm paper, charcoal and brick identity, corresponding to implementation `0d6d650`.
+- Scope: record visual acceptance only; no product code, dependency, release or task changes. Existing Windows/native/model/scheduler acceptance remains separate.
+- Verification: documentation diff and relative reference checked; no runtime tests repeated for this acceptance record.

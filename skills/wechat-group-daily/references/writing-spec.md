@@ -1,4 +1,6 @@
-# 日报写作规范
+# 日报写作规范（详细版）
+
+> 先读冻结归档的 `report_template`：`project` 改读 [项目工作版](report-templates.md)，不执行本文件的叙事字数／人物卡规则；缺省或 `detailed` 执行下文。
 
 > 这一份是 **compose 的提示词**，不是给人看的说明。
 > WorkBuddy 定时任务唤醒 agent 后，按第七节的步骤执行，按第一到五节写稿。

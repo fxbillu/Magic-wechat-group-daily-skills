@@ -70,13 +70,13 @@ $PY fetch.py daily
 
 默认截止点是配置时区最近一次已到达的 `compose.time`；起点接上该群上次成功处理的截止点。首次无成功记录取前一个周期，存在可核对的旧日报则从其成功截止点接续，且不早于关注生效日。单次缺口超过 7 天先报告并由用户决定补跑范围，不自动无限回补。
 
-读取 JSON 的 `groups`：仅对 `state=pending` 的条目写稿，使用条目的 `archive/date/revision/start/end`；它们是冻结范围，不自行改成“昨天”或“今天”。`nothing` 不重复出报；`empty/insufficient` 如实说明，不硬凑；`failed` 保留结果并处理对应错误。失败后再次调用仍返回原待出报素材，不推进起点。不得调用用户包外的 `next_range.py`；本入口已包含接续与待出报恢复。
+每群模板先按 [模板说明](references/report-templates.md) 在对话中设置；未设置沿用详细版。读取 JSON 的 `groups`：仅对 `state=pending` 的条目写稿，使用条目的 `archive/date/revision/start/end/report_template`；它们是冻结范围，不自行改成“昨天”或“今天”。`nothing` 不重复出报；`empty/insufficient` 如实说明，不硬凑；`failed` 保留结果并处理对应错误。失败后再次调用仍返回原待出报素材，不推进起点。不得调用用户包外的 `next_range.py`；本入口已包含接续与待出报恢复。
 
 素材不足或无消息后，同日需要补报时，先刷新解密，再运行 `fetch.py daily --reopen`；需要纳入稍晚的消息时加 `--until <带时区的ISO截止时间>`。只重新采集该日尚未出报的窗口，从原起点接续，已发布日报不重发。无需删除状态文件。
 
 需要立即试跑到当前时刻时，可在用户确认后使用 `daily --until <带时区的ISO截止时间>`；同一群同一出报日期只保留一份。旧自然日归档与当前窗口冲突时返回 `EXISTING_EDITION_PRESERVED`，保留旧数据；换到下一次计划截止点后接续，不删除旧归档解冲突。
 
-读取工具返回的冻结归档路径，文件名按稳定 ID 散列，不按群名猜路径。准备写稿时读 [日报写作规范](references/writing-spec.md)，读完全部来源后由 **WorkBuddy 当前对话模型** 写 story.json，绑定返回条目的 `username/date/source_revision`（`revision` 即归档的 `collection.revision`）。引用使用同一条消息的原句、作者与可用 `message_id`；同名作者需用来源 ID 区分。一个群一份，保留规范中的报道文风、字数、人物选择和人工内容检查。
+读取工具返回的冻结归档路径，文件名按稳定 ID 散列，不按群名猜路径。按归档冻结的 `report_template` 选择写作：`detailed` 读 [详细版规范](references/writing-spec.md)，`project` 读 [项目工作版](references/report-templates.md)。读完全部来源后由 **WorkBuddy 当前对话模型** 写 story.json，绑定返回条目的 `username/date/source_revision`（`revision` 即归档的 `collection.revision`）。引用使用同一条消息的原句、作者与可用 `message_id`；同名作者需用来源 ID 区分。一个群一份。详细版保留报道文风、字数与人物选择；项目版直接整理工作事实，短任务也可成报，责任人与期限不明时留待确认。
 
 ```bash
 $PY tools/check_story.py "<story.json>" --archive "<冻结归档.json>"
@@ -86,15 +86,15 @@ $PY fetch.py daily --finish
 $PY tools/serve.py --port 8765
 ```
 
-写稿时按 [分析说明](references/analysis.md) 增加有实际素材支持的短总述、话题分析、待确认事项、人物动态和原文金句，存入可选 `analysis` 字段；没素材的栏目留空，不给人物贴性格标签。活跃统计由渲染器计算，不让模型填写。需要定位人物或话题上下文时运行 `fetch.py analyze --chat "<稳定群ID>" --date <YYYY-MM-DD> --person "<稳定用户ID>"` 或 `--topic "<关键词>"`；这只读冻结归档，不能代替读完全文。跨日专题可改用 `--start/--end`，缺失日期与截断须明确说明。
+仅详细版写稿时按 [分析说明](references/analysis.md) 增加有实际素材支持的短总述、话题分析、待确认事项、人物动态和原文金句，存入可选 `analysis` 字段；没素材的栏目留空，不给人物贴性格标签。活跃统计由渲染器计算，不让模型填写。需要定位人物或话题上下文时运行 `fetch.py analyze --chat "<稳定群ID>" --date <YYYY-MM-DD> --person "<稳定用户ID>"` 或 `--topic "<关键词>"`；这只读冻结归档，不能代替读完全文。跨日专题可改用 `--start/--end`，缺失日期与截断须明确说明。
 
 渲染登记后运行 `daily --finish`：仅在 HTML 可读且素材版本一致时确认成功；PNG 按既有能力生成或显式降级。失败不手工编辑游标。程序会把真实起止时刻写进报头，模型不能将其改成整日统计。
 
-验稿不通过先修原文绑定和写作问题，再渲染。用宿主现有浏览器打开本地阅读页/实际 HTML，核对日期、群、标题和可读内容。实际打开后如实向用户报告，内容认可独立。PNG 只有实际生成且存在才算成功，没有就明确降级。
+验稿不通过先修原文绑定和写作问题，再渲染。首次首报或用户明确要求查看时，用宿主现有浏览器打开本地阅读页／实际 HTML，核对日期、群、标题和内容；实际打开与用户认可分别报告。日常后台出报只更新文件并通知实际时间范围、结果与链接，不主动打开网页、文件或桌面窗口。需要阅读服务时执行 `python tools/desktop.py ensure`，保持静默；桌面快捷方式的 `launch` 留给用户主动打开。PNG 只有实际生成且存在才算成功，没有就明确降级。
 
 本机搜索结果可展开前后文，支持姓名／群名片或稳定用户 ID 的人物筛选。群日详情先显示总览统计、主要话题与待确认事项，完整活跃表、人物和金句按需展开，并可核对原始来源；旧稿没分析字段时提示更新，不虚构分析结果。新采集优先显示可读取的群内名片，缺失或不兼容时回退现有姓名，不改稳定身份。
 
-日常运行复用已保存的有效密钥，先刷新解密，再按群和日期采集、写稿、验稿、渲染和阅读；只有密钥缺失或失效时才重新取钥，不重复首次初始化。使用已确认配置中的路径：
+日常运行复用已保存的有效密钥，先刷新解密，再按群和日期采集、写稿、验稿、渲染和通知；只有密钥缺失或失效时才重新取钥，不重复首次初始化。使用已确认配置中的路径：
 
 ```bash
 $PY tools/safe_decrypt.py --db-dir "<wechat.db_dir>" --keys "<paths.secrets/all_keys.json>" --output "<paths.decrypted>"

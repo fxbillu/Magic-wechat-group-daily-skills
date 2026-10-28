@@ -26,11 +26,13 @@ MIN_NODES = 3
 MAX_NODES = 9
 
 
-def sufficient(total: int, chars: int, senders: int) -> tuple[bool, str]:
+def sufficient(total: int, chars: int, senders: int, *, template='detailed') -> tuple[bool, str]:
     """这天的料够不够写一篇。返回 (够不够, 不够的理由)
 
     只看能拿到的事实，不猜。
     """
+    if template == 'project':
+        return (True, '') if chars > 0 else (False, '没有可读文字或成功的语音转写；附件内容未处理')
     if chars < MIN_CHARS:
         return False, f"文字总量只有 {chars} 字，不到 {MIN_CHARS} 字的地板"
     if senders <= 1 and chars < MONOLOGUE_MIN_CHARS:

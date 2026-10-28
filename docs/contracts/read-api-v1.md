@@ -182,3 +182,10 @@ Schema 与宿主分析字段详见 [Skill 分析说明](../../skills/wechat-grou
 - 合成归档在 `tests/fixtures/sample-archive.json`。原导入指纹在 `tests/fixtures/import-baseline.json`，仅用于来源追溯，不是新版代码必须保持旧哈希的断言。
 - 前端可以按本契约准备未来状态夹具，但不能把夹具通过当真实后端通过。跨层票据关闭前须连接真实 Python API。
 - Windows 取钥、真实库/WAL、模型内容、PNG、宿主回读/到点触发及第二台安装独立验收。
+
+## 开发分支：按群日报模板（Windows 待验收）
+
+- 包外 `chats[].report_template`：`detailed`（缺省）或 `project`，仅影响之后新采集的归档；归档及 `daily` pending 条目冻结该值。
+- 读取条目的顶层 `report_template` 表示当前归档模板，`report.report_template` 表示已登记产物模板（旧记录缺省 detailed）；旧稿待更新时两者可以不同。阅读器按产物模板展示已生成日报，按归档模板展示待出报状态。
+- 项目版素材地板为至少有可读文字（含成功语音转写），叙事版沿用原字数规则；其余 `collection/report` 状态及旧字段映射保持现有含义。
+- `daily` 返回的 `delivery: {open_browser: false, notify_only: true}` 供宿主编排；该 JSON 不是跨宿主禁止弹窗的系统策略，旧定时任务提示词仍需更新。
